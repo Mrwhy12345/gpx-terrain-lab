@@ -28,6 +28,12 @@ result.json
 *.geojson
 *.osm
 
+# Curated, user-approved public examples
+!examples/
+!examples/**/
+!examples/**/*.3mf
+!examples/**/*.blend
+
 # Secrets and local settings
 .env
 .env.*

@@ -34,6 +34,10 @@
 可复用工具位于 `07_Knowledge/tools/`。当前工具覆盖 GPX、OSM 水体、空间筛选、
 Blender 建模、3MF 封装、颜色映射、坐标修复和发布 QA。
 
+## 示例
+
+- [星溪线 V007：五个 3MF 与完整装配 Blender](examples/星溪线_V007/README.md)
+
 ## 数据与隐私
 
 公开仓库不包含真实 GPX、精确路线坐标、密钥、3MF/Blend/STL 成果或实验缓存。
