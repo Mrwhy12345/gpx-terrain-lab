@@ -12,7 +12,9 @@ def args_after_separator():
     return sys.argv[sys.argv.index("--") + 1 :]
 
 
-source_dir, blend_path, render_path = map(Path, args_after_separator())
+raw_args = args_after_separator()
+source_dir, blend_path, render_path = map(Path, raw_args[:3])
+version = raw_args[3] if len(raw_args) > 3 else "SYS01_V006"
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
@@ -60,7 +62,7 @@ specs = [
     ("04_Base_Gray.stl", "02_底座_灰色主体", "gray", "02_底座"),
     ("05_Base_Labels_Logo_Brown.stl", "02_底座_棕色文字与竹林Logo", "brown", "02_底座"),
     ("06_Trail_Red.stl", "03_徒步轨迹_红色安装件", "red", "03_徒步轨迹"),
-    ("07_Water_Blue.stl", "04_河流水体_蓝色安装件", "blue", "04_河流水体"),
+    ("07_Water_Blue.stl", "04_河流水体_蓝色一体跨轨安装件", "blue", "04_河流水体"),
 ]
 
 for filename, object_name, mat_name, collection_name in specs:
@@ -121,7 +123,7 @@ scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.4
 scene.view_settings.look = "AgX - Medium High Contrast"
 scene.view_settings.exposure = 2.5
 scene.render.film_transparent = False
-scene["版本"] = "SYS01_V006"
+scene["版本"] = version
 scene["用途"] = "第五个3MF对应的四件同盘设计预览"
 scene["打印策略"] = "按层打印"
 scene["可见颜色"] = "绿、棕、灰、红、蓝"
