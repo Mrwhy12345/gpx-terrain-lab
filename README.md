@@ -19,6 +19,8 @@
 星溪线 S02 / SYS01 V007 已完成数字封版，正在进行首件打印验收。单案例核心链路已
 验证，下一阶段是统一 `job.json`、单命令流水线和第二条 GPX 回归。
 
+项目知识工作台：[GPX Terrain Lab Notion](https://app.notion.com/p/3ac2fc59c3118149b2eee192ad6f7a0a)
+
 ## 文档入口
 
 - [产品目标](00_Project/对外系统目标.md)
