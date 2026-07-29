@@ -1,0 +1,34 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+result.json
+
+# Private route and source data
+02_GPX/
+03_Blender/
+04_Slicing/
+05_Print/
+06_Experiment/
+00_Project/密钥清单.md
+01_Software/TrailPrint3D/
+01_Software/TrailPrint3D.zip
+
+# Generated 3D and GIS assets
+*.3mf
+*.blend
+*.blend1
+*.stl
+*.gpx
+*.gpkg
+*.tif
+*.tiff
+*.geojson
+*.osm
+
+# Secrets and local settings
+.env
+.env.*
+*.key
+*.pem
+secrets/
