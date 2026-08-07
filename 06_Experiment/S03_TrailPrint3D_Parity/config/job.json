@@ -1,0 +1,40 @@
+{
+  "experiment": "S03_TrailPrint3D_Parity",
+  "description": "TrailPrint3D 三环境对照实验参数基准",
+  "input": {
+    "gpx_file": "input/xingxi.gpx",
+    "gpx_name": "2025-02-23 从化星溪线"
+  },
+  "software": {
+    "blender_version": "5.2.0 LTS",
+    "trailprint3d_version": "3.1.2",
+    "bambu_studio_version": "",
+    "python_version": "",
+    "dem_api": "OpenTopoData",
+    "os": ""
+  },
+  "trailprint3d_parameters": {
+    "shape": "Square",
+    "object_size_mm": 100,
+    "resolution": 3,
+    "elevation_scale": "",
+    "path_thickness": "",
+    "path_scale": 1.0,
+    "override_path_elevation": true,
+    "fixed_elevation_scale": false,
+    "min_thickness": "",
+    "single_color_mode": false,
+    "include_water": false,
+    "include_forest": false,
+    "include_city": false,
+    "dem_api": "OpenTopoData"
+  },
+  "bambu_studio": {
+    "printer": "Bambu Lab H2C",
+    "nozzle_diameter_mm": 0.4,
+    "layer_height_mm": 0.2,
+    "preset": ""
+  },
+  "notes": "第一轮追求稳定和快速，不追求漂亮。elevation_scale 先在 E101 GUI 中确定后锁定。",
+  "created": "2026-08-07"
+}
