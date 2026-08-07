@@ -5,6 +5,12 @@
 ## 2026-08-07
 
 ### Added
+- 新增 `06_Experiment/S02_ColorTest/README.md` 多色打印验证实验记录
+  - 中文字体解决方案（Songti.ttc）
+  - TrailPrint3D自动水体开槽发现
+  - Single-Color模式多对象导出验证
+  - Bambu Studio浮空报警原因分析
+  - Blender Boolean手动修正方案
 - 新增 `ROADMAP.md` 项目路线图（Phase 1-4）
 - 新增 `CHANGELOG.md` 里程碑记录
 - 新增 `06_Experiment/S03_TrailPrint3D_Parity/` 三环境对照实验目录
