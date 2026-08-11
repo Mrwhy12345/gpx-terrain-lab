@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the selected 1.50x, road-free, three-band printable terrain model."""
+"""Build a three-band printable terrain model without rescaling tested elevation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import bmesh
 import bpy
 
 
-VERTICAL_FACTOR = 1.50
+VERTICAL_FACTOR = 1.00
 BROWN_START = 0.52
 GRAY_START = 0.74
 
@@ -30,6 +30,8 @@ def quality(obj):
 
 def world_bounds(obj):
     points = [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
+    if not points:
+        raise RuntimeError(f"Cannot measure empty mesh: {obj.name}")
     return {
         axis: [min(point[i] for point in points), max(point[i] for point in points)]
         for i, axis in enumerate(("x", "y", "z"))
@@ -76,7 +78,7 @@ def intersect_copy(source, name, tag, min_z, max_z, color):
     box = intersection_box(name + "_Cutter", bounds, min_z, max_z)
     modifier = result.modifiers.new("Elevation band intersection", "BOOLEAN")
     modifier.operation = "INTERSECT"
-    modifier.solver = "EXACT"
+    modifier.solver = "MANIFOLD"
     modifier.object = box
     bpy.context.view_layer.objects.active = result
     result.select_set(True)
@@ -84,6 +86,8 @@ def intersect_copy(source, name, tag, min_z, max_z, color):
     result.select_set(False)
     bpy.data.objects.remove(box, do_unlink=True)
     recalculate_normals(result)
+    if not result.data.vertices:
+        raise RuntimeError(f"Elevation band {name} is empty after intersection")
     result["Object type"] = tag
     result["S06_geometry"] = tag.lower()
     result["Vertical factor"] = VERTICAL_FACTOR
@@ -118,6 +122,7 @@ def main():
         and (
             obj == terrain
             or obj.get("Object type") in {"TRAIL", "TRAIL_INSERT"}
+            or obj.get("Object type") in {"WATER", "OCEAN"}
             or obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
             or obj.get("S04_geometry") == "residential_areas_printable"
         )

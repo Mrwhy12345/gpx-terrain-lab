@@ -95,6 +95,19 @@ def polygon_area(points):
     )
 
 
+def chaikin(points, iterations):
+    """Round raster stair-steps while preserving a closed silhouette."""
+    result = points
+    for _ in range(iterations):
+        rounded = []
+        for index, point in enumerate(result):
+            nxt = result[(index + 1) % len(result)]
+            rounded.append((0.75 * point[0] + 0.25 * nxt[0], 0.75 * point[1] + 0.25 * nxt[1]))
+            rounded.append((0.25 * point[0] + 0.75 * nxt[0], 0.25 * point[1] + 0.75 * nxt[1]))
+        result = rounded
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
@@ -103,6 +116,7 @@ def main():
     parser.add_argument("--threshold", type=int, default=150)
     parser.add_argument("--minimum-component", type=int, default=18)
     parser.add_argument("--simplify", type=float, default=1.1)
+    parser.add_argument("--smooth-iterations", type=int, default=0)
     args = parser.parse_args()
 
     image = Image.open(args.source).convert("L")
@@ -124,6 +138,7 @@ def main():
     for loop in boundary_loops(mask):
         closed = loop + [loop[0]]
         simplified = rdp(closed, args.simplify)[:-1]
+        simplified = chaikin(simplified, args.smooth_iterations)
         if len(simplified) >= 3 and abs(polygon_area(simplified)) >= args.minimum_component:
             loops.append(simplified)
     paths = []

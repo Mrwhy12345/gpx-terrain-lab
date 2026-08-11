@@ -6,6 +6,9 @@
 项目角色、图标、文件责任和模型切换规则统一登记在根目录 `AGENTS.md`。开始任务
 时先按其中的 🦁/🐒/🐗/🐾/🐦 角色路由，再执行本流程。
 
+TrailPrint3D 的默认真机参数以
+`07_Knowledge/Conclusions/TrailPrint3D_真机验证参数基线.md` 为唯一基线。
+
 ## 一、启动时只提供这些输入
 
 1. GPX 文件路径；
@@ -18,10 +21,16 @@
 ## 二、固定决策，除非用户明确修改
 
 - 坐标：WGS 84 输入，局部米制坐标计算；
+- 地形、水、森林、城市等沙盘事实数据：统一由 TrailPrint3D 获取；
+- 默认尺寸/精度：六边形、100 mm、Resolution 8、Elevation Scale 1.80；
+- 默认轨迹：Path Thickness 1.60 mm、Path Scale 0.80、SingleColorMode Trail；
 - 地形边界：从最终地形 Mesh 精确提取；
 - GPX 距离：逐段 Haversine；
-- 水体近邻门槛：150 m；
-- 水体线宽：0.9 mm；
+- 水体事实源：TrailPrint3D 原生 OSM WATER 查询，禁止先按距轨迹距离删水；
+- 默认水体参数：Water / Big Rivers / Small Rivers / Include Ocean 全开；
+- River Width：1.00；Water Threshold：1.00；
+- Min Island Area：2.00；Coastline Simplify：0.100；
+- 水体线宽：以 TrailPrint3D River Width 1.00 为事实源，打印后处理不得改变水网数量；
 - 水体顶部：高出地形 0.36 mm；
 - 水体嵌入：0.18 mm；
 - 面状水体阶段性门槛：0.50 mm² 模型面积；
@@ -34,9 +43,9 @@
 
 1. 读取 GPX，输出点数、长度、异常跳点；
 2. 生成地形并冻结模型 XY 边界；
-3. OSM 数据一次性抓取并保存原始响应；
-4. 代码完成轨迹距离、边界裁剪、几何有效性和打印分类；
-5. 只对入选候选做地图人工核验；
+3. TrailPrint3D 按真机基线生成地形、轨迹及所需元素，并保存原生对象与报告；
+4. 代码只做最终沙盘边界裁剪、几何有效性和打印分类；距轨迹距离仅用于审计，不用于删除沙盘内水系；
+5. 对沙盘范围内完整水网做地图核验；仅删除明确错误、越界或无法打印的噪声；
 6. Blender 生成地形、水体、轨迹、底座和文字；
 7. 文字按最终基座几何自动居中；
 8. 输出独立同原点零件；
@@ -47,7 +56,9 @@
 
 ## 四、优先复用的工具
 
-- `tools/analyze_water_proximity.py`
+- `tools/generate_job_trailprint.py`（原生完整水网）
+- `tools/inspect_trailprint_native_water.py`
+- `tools/analyze_water_proximity.py`（只审计，不作为默认删除条件）
 - `tools/audit_s02_water_printability.py`
 - `tools/extract_trailprint_boundary.py`
 - `tools/build_blender_water_geometry.py`

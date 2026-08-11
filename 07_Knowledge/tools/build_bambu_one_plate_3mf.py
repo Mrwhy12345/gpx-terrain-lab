@@ -152,6 +152,7 @@ def main():
     parser.add_argument("source_dir", type=Path)
     parser.add_argument("template_3mf", type=Path)
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--name", default="四件同盘")
     args = parser.parse_args()
     specs = [
         ("01_Terrain_Low_Green.stl", 1),
@@ -170,16 +171,19 @@ def main():
         main_model = temp_dir / "3dmodel.model"
         write_object_model(object_model, parts)
         write_main_model(main_model, parts)
+        main_model.write_bytes(main_model.read_bytes().replace("星溪线_四件同盘".encode(), args.name.encode()))
         with ZipFile(args.template_3mf) as template:
             settings = json.loads(template.read("Metadata/project_settings.config"))
         settings["print_sequence"] = "by layer"
-        settings["filament_colour"][:5] = [
+        palette = [
             "#3F8E43",
             "#6F5034",
             "#858C91",
             "#2563B8",
-            "#C12E1F",
+            "#D93025",
         ]
+        settings["filament_colour"] = palette
+        settings["default_filament_colour"] = palette
         content_types = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -200,7 +204,7 @@ def main():
             archive.write(main_model, "3D/3dmodel.model")
             archive.write(object_model, "3D/Objects/object_1.model")
             archive.writestr("3D/_rels/3dmodel.model.rels", model_relationships)
-            archive.writestr("Metadata/model_settings.config", model_settings(parts))
+            archive.writestr("Metadata/model_settings.config", model_settings(parts).replace("星溪线_四件同盘".encode(), args.name.encode()))
             archive.writestr(
                 "Metadata/project_settings.config",
                 json.dumps(settings, ensure_ascii=False, indent=4).encode("utf-8"),

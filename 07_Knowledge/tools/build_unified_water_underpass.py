@@ -18,6 +18,7 @@ RAIL_TOP_Z = 1.90
 RAIL_WIDTH_MM = 1.20
 CUTTER_CLEARANCE_MM = 0.12
 REMESH_VOXEL_MM = 0.08
+INSERTION_SWEEP_STEP_MM = 0.50
 
 
 def bounds(obj):
@@ -222,6 +223,12 @@ def voxel_union(obj):
         raise RuntimeError("Unified water is still disconnected after voxel union")
 
 
+def align_bottom(obj, target_z):
+    current_min = bounds(obj)["z"][0]
+    obj.location.z += target_z - current_min
+    bpy.context.view_layer.update()
+
+
 def export_stl(path, obj, offset_z=0.0):
     original = obj.location.copy()
     obj.location.z += offset_z
@@ -233,10 +240,21 @@ def export_stl(path, obj, offset_z=0.0):
 
 
 def main():
+    global COMMON_BOTTOM_Z, RAIL_TOP_Z
     args = sys.argv[sys.argv.index("--") + 1 :]
-    if len(args) != 5:
-        raise SystemExit("Expected OUTPUT.blend TERRAIN_LOW.stl WATER.stl REPORT.json PREVIEW.png")
-    output_blend, terrain_stl, water_stl, report_path, preview_path = map(Path, args)
+    if len(args) not in (5, 6):
+        raise SystemExit(
+            "Expected OUTPUT.blend TERRAIN_LOW.stl WATER.stl REPORT.json "
+            "PREVIEW.png [top|bottom]"
+        )
+    output_blend, terrain_stl, water_stl, report_path, preview_path = map(Path, args[:5])
+    install_mode = args[5] if len(args) == 6 else "top"
+    if install_mode not in {"top", "bottom"}:
+        raise SystemExit("Install mode must be top or bottom")
+    if install_mode == "bottom":
+        COMMON_BOTTOM_Z = 0.0
+        RAIL_TOP_Z = 0.50
+    version = "SYS01_V009" if install_mode == "bottom" else "SYS01_V008"
     for path in (output_blend, terrain_stl, water_stl, report_path, preview_path):
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -274,9 +292,26 @@ def main():
         cutter = expanded_copy(source)
         boolean_difference(low, cutter)
         bpy.data.objects.remove(cutter, do_unlink=True)
+    if install_mode == "bottom":
+        # A valid bottom-loaded part needs clearance for every intermediate
+        # position, not only its final pose. Subtract the complete sampled
+        # swept envelope of the visible water bodies from the low terrain.
+        for source in waters:
+            source_height = bounds(source)["z"][1] - COMMON_BOTTOM_Z
+            offset = -INSERTION_SWEEP_STEP_MM
+            while offset >= -source_height:
+                cutter = expanded_copy(source)
+                cutter.location.z += offset
+                boolean_difference(low, cutter)
+                bpy.data.objects.remove(cutter, do_unlink=True)
+                offset -= INSERTION_SWEEP_STEP_MM
 
-    unified = join([*waters, *rails, *pads], "SYS01_V008_Water_Blue_Unified_Underpass")
+    unified = join(
+        [*waters, *rails, *pads],
+        f"{version}_Water_Blue_Unified_{install_mode.title()}Load",
+    )
     voxel_union(unified)
+    align_bottom(unified, COMMON_BOTTOM_Z)
     unified["SYS01_geometry"] = "unified_water_underpass"
     unified["island_count_before"] = len(nodes)
     unified["hidden_rail_count"] = len(edges)
@@ -289,7 +324,10 @@ def main():
     export_stl(water_stl, unified, offset_z=-COMMON_BOTTOM_Z)
 
     # Simple QA render from above with the unified water highlighted.
-    bpy.ops.object.camera_add(location=(0, -120, 150))
+    camera_location = (
+        (0, -120, -115) if install_mode == "bottom" else (0, -120, 150)
+    )
+    bpy.ops.object.camera_add(location=camera_location)
     camera = bpy.context.object
     direction = Vector((0, 0, 4)) - camera.location
     camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
@@ -311,13 +349,22 @@ def main():
 
     trail_bounds = bounds(trail)
     report = {
-        "version": "SYS01_V008",
+        "version": version,
+        "installation": {
+            "mode": install_mode,
+            "direction": "+Z from terrain underside" if install_mode == "bottom" else "-Z from terrain top",
+            "base_captures_water": install_mode == "bottom",
+            "connector_flush_with_terrain_bottom": install_mode == "bottom",
+        },
         "parameters_mm": {
             "common_water_bottom_z": COMMON_BOTTOM_Z,
             "hidden_rail_top_z": RAIL_TOP_Z,
             "hidden_rail_width": RAIL_WIDTH_MM,
             "cutter_clearance_each_side": CUTTER_CLEARANCE_MM,
             "voxel_union_resolution": REMESH_VOXEL_MM,
+            "insertion_sweep_step": (
+                INSERTION_SWEEP_STEP_MM if install_mode == "bottom" else None
+            ),
         },
         "water_islands_before": len(nodes),
         "hidden_rails": len(edges),
@@ -336,7 +383,11 @@ def main():
             {"from": left, "to": right, "length_mm": round(distance, 4)}
             for distance, left, right in edges
         ],
-        "terrain_low": {"bounds": bounds(low), "quality": quality(low)},
+        "terrain_low": {
+            "bounds": bounds(low),
+            "quality": quality(low),
+            "connected_components": connected_components(low),
+        },
         "unified_water": {
             "bounds": bounds(unified),
             "quality": quality(unified),

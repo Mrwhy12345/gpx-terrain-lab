@@ -121,14 +121,42 @@ def main():
         for point in root.iter()
         if point.tag.rsplit("}", 1)[-1] in {"trkpt", "rtept"}
     ]
+    waypoint_names = [
+        (
+            float(point.attrib["lon"]),
+            float(point.attrib["lat"]),
+            next(
+                (
+                    (child.text or "").strip()
+                    for child in point
+                    if child.tag.rsplit("}", 1)[-1] == "name"
+                    and (child.text or "").strip()
+                ),
+                None,
+            ),
+        )
+        for point in root.iter()
+        if point.tag.rsplit("}", 1)[-1] == "wpt"
+    ]
+
+    def nearest_name(lonlat, fallback):
+        named = [item for item in waypoint_names if item[2]]
+        if not named:
+            return fallback
+        nearest = min(
+            named,
+            key=lambda item: math.hypot(item[0] - lonlat[0], item[1] - lonlat[1]),
+        )
+        return nearest[2]
+
     endpoints = {
         "start": {
-            "name": "东星村",
+            "name": nearest_name(points[0], "起点"),
             "lonlat": points[0],
             "xy": geo_to_world(*points[0], float(terrain["Horizontal Scale"])),
         },
         "end": {
-            "name": "溪头村",
+            "name": nearest_name(points[-1], "终点"),
             "lonlat": points[-1],
             "xy": geo_to_world(*points[-1], float(terrain["Horizontal Scale"])),
         },
@@ -244,8 +272,8 @@ def main():
     combined_cutter.hide_set(True)
 
     trail.name = "S02_Trail_Red_Insert_With_Endpoints"
-    trail["Start name"] = "东星村"
-    trail["End name"] = "溪头村"
+    trail["Start name"] = endpoints["start"]["name"]
+    trail["End name"] = endpoints["end"]["name"]
     recalculate_normals(trail)
     if quality(trail)["non_manifold_edges"]:
         # 0.10 mm preserves a 1.4 mm trail with ample sampling while avoiding

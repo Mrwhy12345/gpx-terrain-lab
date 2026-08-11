@@ -1,0 +1,5 @@
+.view-gallery.placeholders{opacity:.72}
+.view-slot{min-height:76px;border:1px dashed #ffffff28;border-radius:9px;padding:8px;text-align:center;color:#aebbb2;background:#ffffff05}
+.view-slot i{display:block;width:22px;height:15px;margin:4px auto 7px;border:1px solid #ffffff32;border-radius:3px;position:relative}
+.view-slot i:after{content:"";position:absolute;width:5px;height:5px;border-radius:50%;background:#d6e98d55;right:3px;top:3px}
+.view-slot span{font-size:9px}.view-slot small{display:block;font-size:8px;color:#76867b;margin-top:3px}

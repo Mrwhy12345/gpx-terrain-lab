@@ -15,7 +15,7 @@ from bl_ext.user_default.trailprint3d.utils.mesh_ops import (
 )
 
 
-PATH_THICKNESS_MM = 1.4
+PATH_THICKNESS_MM = 1.6
 SIDE_TOLERANCE_MM = 0.2
 CUT_DEPTH_MM = 1.0
 
@@ -37,12 +37,19 @@ def quality(obj):
 
 def main():
     arguments = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    if len(arguments) != 2:
+    if len(arguments) not in {2, 3}:
         raise SystemExit(
             "Usage: blender INPUT.blend --python script.py -- "
-            "OUTPUT.blend REPORT.json"
+            "OUTPUT.blend REPORT.json [JOB.json]"
         )
-    output_blend, report_path = map(Path, arguments)
+    output_blend, report_path = map(Path, arguments[:2])
+    path_thickness = PATH_THICKNESS_MM
+    side_tolerance = SIDE_TOLERANCE_MM
+    if len(arguments) == 3:
+        job = json.loads(Path(arguments[2]).read_text(encoding="utf-8"))
+        engineering = job.get("engineering", {})
+        path_thickness = float(engineering.get("path_thickness_mm", path_thickness))
+        side_tolerance = float(engineering.get("trail_slot_clearance_mm", side_tolerance))
 
     terrain = next(
         obj
@@ -57,7 +64,10 @@ def main():
     waters = [
         obj
         for obj in bpy.context.scene.objects
-        if obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
+        if (
+            obj.get("Object type") in {"WATER", "OCEAN"}
+            or obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
+        )
     ]
     roads = [
         obj
@@ -66,8 +76,8 @@ def main():
     ]
 
     scene_props = bpy.context.scene.tp3d
-    scene_props.pathThickness = PATH_THICKNESS_MM
-    scene_props.tolerance = SIDE_TOLERANCE_MM
+    scene_props.pathThickness = path_thickness
+    scene_props.tolerance = side_tolerance
 
     # The TrailPrint3D SCM helper expects the cursor at the owning map.
     bpy.context.scene.cursor.location = terrain.location
@@ -135,8 +145,8 @@ def main():
     report = {
         "source_blend": bpy.data.filepath,
         "parameters": {
-            "path_thickness_mm": PATH_THICKNESS_MM,
-            "side_tolerance_mm_each_side": SIDE_TOLERANCE_MM,
+            "path_thickness_mm": path_thickness,
+            "side_tolerance_mm_each_side": side_tolerance,
             "cut_depth_mm": CUT_DEPTH_MM,
             "insert_print_orientation": "flat bottom on build plate",
         },

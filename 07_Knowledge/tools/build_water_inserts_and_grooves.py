@@ -14,6 +14,8 @@ import bpy
 SIDE_CLEARANCE_MM = 0.12
 PACK_MARGIN_MM = 4.0
 PACK_ROW_WIDTH_MM = 210.0
+REPAIR_AFTER_FLATTEN = False
+REPAIR_VOXEL_MM = 0.04
 
 
 def quality(obj):
@@ -64,10 +66,23 @@ def flatten_bottom(obj):
     bottom_z = min(vertex.co.z for vertex in bottom_vertices)
     for vertex in bottom_vertices:
         vertex.co.z = bottom_z
+    # Flattening may collapse pre-existing sliver triangles onto the bottom
+    # plane. Remove them before STL export so slicer/import round-trips remain
+    # manifold instead of reopening boundary edges.
+    bmesh.ops.remove_doubles(mesh, verts=mesh.verts, dist=1e-6)
+    bmesh.ops.dissolve_degenerate(mesh, edges=mesh.edges, dist=1e-6)
     bmesh.ops.recalc_face_normals(mesh, faces=mesh.faces)
     mesh.to_mesh(obj.data)
     mesh.free()
     obj.data.update()
+    if REPAIR_AFTER_FLATTEN:
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        obj.data.remesh_voxel_size = REPAIR_VOXEL_MM
+        obj.data.remesh_voxel_adaptivity = 0.0
+        bpy.ops.object.voxel_remesh()
+        recalculate_normals(obj)
     return bottom_z, len(bottom_vertices)
 
 
@@ -145,7 +160,10 @@ def main():
     ]
     waters = [
         obj for obj in bpy.context.scene.objects
-        if obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
+        if (
+            obj.get("Object type") in {"WATER", "OCEAN"}
+            or obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
+        )
     ]
     if not waters:
         raise RuntimeError("No printable water objects found")

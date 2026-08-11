@@ -216,9 +216,10 @@ def export_selected(path, objects, center_x, center_y):
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    if len(args) != 5:
-        raise SystemExit("Expected OUTPUT.blend REPORT.json BASE.stl BROWN.stl PREVIEW.png")
-    output_blend, report_path, base_stl, brown_stl, preview_path = map(Path, args)
+    if len(args) not in {5, 6}:
+        raise SystemExit("Expected OUTPUT.blend REPORT.json BASE.stl BROWN.stl PREVIEW.png [LOGO.svg]")
+    output_blend, report_path, base_stl, brown_stl, preview_path = map(Path, args[:5])
+    svg_source = Path(args[5]) if len(args) == 6 else SVG_SOURCE
     base = next(o for o in bpy.context.scene.objects if o.get("S05_geometry") == "display_base")
     labels = next(o for o in bpy.context.scene.objects if o.get("S05_geometry") == "display_title")
     terrain = next(o for o in bpy.context.scene.objects if o.get("Object type") == "TERRAIN_LOW_GREEN")
@@ -299,10 +300,10 @@ def main():
         shape.data.update()
 
     # V005 replaces programmed primitives with exact traced SVG contours.
-    if SVG_SOURCE.exists():
+    if svg_source.exists():
         for shape in shapes:
             bpy.data.objects.remove(shape, do_unlink=True)
-        shapes = svg_logo_prisms(SVG_SOURCE, cx, cy, z0, z1)
+        shapes = svg_logo_prisms(svg_source, cx, cy, z0, z1)
 
     cut_checks = []
     for shape in shapes:
@@ -352,8 +353,8 @@ def main():
 
     report = {
         "version": "SYS01_V005",
-        "logo": "星溪竹林_SVG直入",
-        "source_svg": str(SVG_SOURCE),
+        "logo": svg_source.stem,
+        "source_svg": str(svg_source),
         "svg_target_width_mm": SVG_TARGET_WIDTH_MM,
         "placement": "base_underside_center",
         "diameter_mm": LOGO_DIAMETER_MM,
