@@ -61,8 +61,10 @@ def main():
     stages.append(run("02_trail", blender(source, "build_trail_insert_and_groove.py", trail, review/"trail_insert.json", job_path), [trail, review/"trail_insert.json"], process))
     endpoint = work / "trail_endpoints.blend"
     stages.append(run("03_endpoints", blender(trail, "add_trail_endpoint_relief.py", gpx, endpoint, review/"trail_endpoints.json"), [endpoint, review/"trail_endpoints.json"], process))
+    unified_trail = work / "trail_one_piece.blend"
+    stages.append(run("03b_trail_unify", blender(endpoint, "unify_trail_hidden_bridges.py", unified_trail, review/"trail_one_piece.json"), [unified_trail, review/"trail_one_piece.json"], process))
     bands = work / "terrain_three_band.blend"; bands_report = review / "terrain_three_band.json"
-    stages.append(run("04_bands", blender(endpoint, "build_three_band_print_model.py", bands, bands_report), [bands, bands_report], process))
+    stages.append(run("04_bands", blender(unified_trail, "build_three_band_print_model.py", bands, bands_report), [bands, bands_report], process))
     parts = work / "parts"; water_scene = work / "terrain_water_grooved.blend"
     stages.append(run("05_water", blender(bands, "build_water_inserts_and_grooves.py", water_scene, parts, review/"water_inserts.json"), [water_scene, parts/"05_Water_Blue_SeparatePrint.stl"], process))
     base = work / "base.blend"
@@ -92,6 +94,7 @@ def main():
         stages.append(run(f"13_3mf_{key}",command,[destination],process))
     one_plate = final / f"05_{name}_四件同盘.3mf"
     stages.append(run("13_3mf_05",[sys.executable,str(TOOLS/"build_bambu_one_plate_3mf.py"),str(plate),str(TEMPLATE),str(one_plate),"--name",f"{name}_四件同盘"],[one_plate],process))
+    stages.append(run("13_3mf_05_hierarchy",[sys.executable,str(TOOLS/"validate_bambu_four_object_plate.py"),str(one_plate),str(review/"one_plate_hierarchy.json")],[review/"one_plate_hierarchy.json"],process))
     blend = final / f"06_{name}_完整设计预览.blend"
     stages.append(run("14_blender",blender(final_scene,"prepare_blender_delivery.py",blend,review/"blender_delivery.json",review/"blender_delivery.png"),[blend,review/"blender_delivery.json"],process))
     release_qa = review / "generic_release_qa.json"

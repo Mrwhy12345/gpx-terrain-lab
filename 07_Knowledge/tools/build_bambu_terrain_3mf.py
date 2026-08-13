@@ -39,9 +39,7 @@ def main():
         root_model = temp_dir / "3dmodel.model"
         bambu.write_object_model(object_model, parts)
         bambu.write_main_model(root_model, parts)
-        settings_xml = bambu.model_settings(parts).replace(
-            "星溪线_四件同盘".encode(), "星溪线_沙盘地形_一体水系安装槽".encode()
-        )
+        settings_xml = bambu.model_settings(parts, "星溪线_沙盘地形_一体水系安装槽")
 
         project = json.loads(members["Metadata/project_settings.config"])
         project["filament_colour"] = ["#3F8E43", "#6F5034", "#858C91"]

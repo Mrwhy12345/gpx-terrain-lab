@@ -32,9 +32,7 @@ def main():
         root_model = temp_dir / "3dmodel.model"
         bambu.write_object_model(object_model, parts)
         bambu.write_main_model(root_model, parts)
-        settings_xml = bambu.model_settings(parts).replace(
-            "星溪线_四件同盘".encode(), "星溪线_底座_居中文字_SVG竹林Logo".encode()
-        )
+        settings_xml = bambu.model_settings(parts, "星溪线_底座_居中文字_SVG竹林Logo")
         project = json.loads(members["Metadata/project_settings.config"])
         project["filament_colour"] = ["#858C91", "#7A4A20"]
         project["default_filament_colour"] = ["#858C91", "#7A4A20"]

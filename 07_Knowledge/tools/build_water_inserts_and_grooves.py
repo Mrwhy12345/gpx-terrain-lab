@@ -4,18 +4,29 @@
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
 import bmesh
 import bpy
+from mathutils.kdtree import KDTree
 
 
-SIDE_CLEARANCE_MM = 0.12
+# Real installation fractured a three-piece water insert at 0.12 mm/side.
+# Water is more fragile than the trail, so give it an independent relaxed fit.
+SIDE_CLEARANCE_MM = 0.25
+WATER_XY_EXPANSION_MM = 0.15
+LOCAL_NECK_WIDTH_MM = 1.35
+LOCAL_NECK_HEIGHT_MM = 0.55
+MAX_LOCAL_JOIN_GAP_MM = 4.0
+TARGET_INSTALL_COMPONENTS = 2
+WATER_REMESH_VOXEL_MM = 0.065
 PACK_MARGIN_MM = 4.0
 PACK_ROW_WIDTH_MM = 210.0
 REPAIR_AFTER_FLATTEN = False
 REPAIR_VOXEL_MM = 0.04
+MIN_TERRAIN_COMPONENT_VERTICES = 500
 
 
 def quality(obj):
@@ -47,6 +58,119 @@ def recalculate_normals(obj):
     mesh.to_mesh(obj.data)
     mesh.free()
     obj.data.update()
+
+
+def remove_tiny_components(obj, minimum_vertices=MIN_TERRAIN_COMPONENT_VERTICES):
+    mesh = bmesh.new(); mesh.from_mesh(obj.data); remaining=set(mesh.verts); groups=[]
+    while remaining:
+        seed=remaining.pop(); group={seed}; queue=[seed]
+        while queue:
+            vertex=queue.pop()
+            for edge in vertex.link_edges:
+                other=edge.other_vert(vertex)
+                if other in remaining: remaining.remove(other); group.add(other); queue.append(other)
+        groups.append(group)
+    removed=[group for group in groups if len(group)<minimum_vertices]
+    if removed:
+        bmesh.ops.delete(mesh,geom=[vertex for group in removed for vertex in group],context="VERTS")
+        mesh.to_mesh(obj.data); obj.data.update()
+    payload={"removed_components":len(removed),"removed_vertex_counts":sorted((len(g) for g in removed),reverse=True),"kept_vertex_counts":sorted((len(g) for g in groups if len(g)>=minimum_vertices),reverse=True)}
+    mesh.free(); return payload
+
+
+def widen_xy(obj):
+    """Widen narrow water laterally without increasing its visible height."""
+    recalculate_normals(obj)
+    mesh = bmesh.new()
+    mesh.from_mesh(obj.data)
+    mesh.normal_update()
+    for vertex in mesh.verts:
+        normal = vertex.normal.copy()
+        normal.z = 0.0
+        if normal.length_squared > 1e-10:
+            normal.normalize()
+            vertex.co += normal * WATER_XY_EXPANSION_MM
+    bmesh.ops.recalc_face_normals(mesh, faces=mesh.faces)
+    mesh.to_mesh(obj.data)
+    mesh.free()
+    obj.data.update()
+
+
+def component_points(obj):
+    mesh = bmesh.new(); mesh.from_mesh(obj.data)
+    remaining = set(mesh.verts); groups = []
+    while remaining:
+        seed = remaining.pop(); group = {seed}; queue = [seed]
+        while queue:
+            vertex = queue.pop()
+            for edge in vertex.link_edges:
+                other = edge.other_vert(vertex)
+                if other in remaining:
+                    remaining.remove(other); group.add(other); queue.append(other)
+        points = [obj.matrix_world @ vertex.co for vertex in group]
+        bottom = min(point.z for point in points)
+        groups.append([point for point in points if point.z <= bottom + 0.10])
+    mesh.free(); return groups
+
+
+def nearest_pair(left, right):
+    tree = KDTree(len(left))
+    for index, point in enumerate(left): tree.insert(point, index)
+    tree.balance(); best = None
+    for point in right:
+        nearest, _, distance = tree.find(point)
+        if best is None or distance < best[0]: best = (distance, nearest.copy(), point.copy())
+    return best
+
+
+def local_rail(name, start, end):
+    midpoint = (start + end) / 2
+    length = (end.xy - start.xy).length
+    z0 = min(start.z, end.z) - 0.03
+    bpy.ops.mesh.primitive_cube_add(location=(midpoint.x, midpoint.y, z0 + LOCAL_NECK_HEIGHT_MM / 2))
+    rail = bpy.context.object; rail.name = name
+    rail.dimensions = (length + LOCAL_NECK_WIDTH_MM * 1.8, LOCAL_NECK_WIDTH_MM, LOCAL_NECK_HEIGHT_MM)
+    rail.rotation_euler.z = math.atan2(end.y - start.y, end.x - start.x)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return rail
+
+
+def local_pad(name, point):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=LOCAL_NECK_WIDTH_MM, depth=LOCAL_NECK_HEIGHT_MM,
+        location=(point.x, point.y, point.z - 0.03 + LOCAL_NECK_HEIGHT_MM / 2))
+    pad = bpy.context.object; pad.name = name; return pad
+
+
+def reinforce_nearby_components(water):
+    groups = component_points(water)
+    candidates = []
+    for left in range(len(groups)):
+        for right in range(left + 1, len(groups)):
+            distance, start, end = nearest_pair(groups[left], groups[right])
+            candidates.append((distance, left, right, start, end))
+    candidates.sort(key=lambda item: item[0])
+    selected = []
+    if len(groups) > TARGET_INSTALL_COMPONENTS and candidates and candidates[0][0] <= MAX_LOCAL_JOIN_GAP_MM:
+        selected.append(candidates[0])
+    if not selected:
+        return water, len(groups), len(groups), [], [round(item[0], 3) for item in candidates]
+    additions = []
+    for index, item in enumerate(selected, 1):
+        additions.extend((local_rail(f"WaterLocalRail_{index:02d}", item[3], item[4]),
+                          local_pad(f"WaterLocalPad_{index:02d}_A", item[3]),
+                          local_pad(f"WaterLocalPad_{index:02d}_B", item[4])))
+    select_only([water, *additions]); bpy.ops.object.join(); water = bpy.context.object
+    water.name = "route_WATER_Reinforced"
+    # TrailPrint vertices use large projected coordinates (~212 km).  Move the
+    # mesh origin to its geometry before voxelisation to avoid float precision
+    # cracks at 0.065 mm resolution while preserving world placement.
+    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
+    water.data.remesh_voxel_size = WATER_REMESH_VOXEL_MM
+    water.data.remesh_voxel_adaptivity = 0.0
+    water.data.use_remesh_fix_poles = True
+    bpy.ops.object.voxel_remesh()
+    after = len(component_points(water))
+    return water, len(groups), after, [round(item[0], 3) for item in selected], [round(item[0], 3) for item in candidates]
 
 
 def flatten_bottom(obj):
@@ -168,9 +292,28 @@ def main():
     if not waters:
         raise RuntimeError("No printable water objects found")
 
+    # TrailPrint may provide one mesh with several disconnected waterways.
+    # Establish a common printable bottom before reinforcement; otherwise a
+    # voxel union can miss a rail whose endpoints sit on different Z levels.
+    bottom_records = {}
+    for water in waters:
+        bottom_records[water.name] = flatten_bottom(water)
+    # Widen it, then join only genuinely adjacent endpoints.  Groove
+    # cutters are derived from this final reinforced geometry, guaranteeing
+    # that the printed water and terrain slot stay matched.
+    for water in waters:
+        widen_xy(water)
+    if len(waters) == 1:
+        waters[0], components_before, components_after, local_gaps, all_gaps = reinforce_nearby_components(waters[0])
+    else:
+        components_before = components_after = len(waters); local_gaps = []; all_gaps = []
+
     insert_records = []
     cutters = []
     for index, water in enumerate(waters, start=1):
+        # Reinforcement can rename the single TrailPrint water object.  Its
+        # bottom is already flattened; refresh the bottom vertex accounting
+        # after the union without changing the established sequence.
         bottom_z, bottom_vertex_count = flatten_bottom(water)
         water["SYS01_geometry"] = "water_insert"
         water["Water insert bottom Z"] = bottom_z
@@ -202,6 +345,8 @@ def main():
                     "vertices_after": after["vertices"],
                 }
             )
+        if target in {low, middle, high}:
+            target_record["post_cut_component_cleanup"] = remove_tiny_components(target)
         target_record["quality_after"] = quality(target)
         cut_records.append(target_record)
 
@@ -286,8 +431,18 @@ def main():
         "output_blend": str(output_blend),
         "parameters_mm": {
             "side_clearance_each_side": SIDE_CLEARANCE_MM,
+            "water_xy_expansion_each_side": WATER_XY_EXPANSION_MM,
+            "nominal_minimum_neck_width": LOCAL_NECK_WIDTH_MM,
+            "local_neck_height": LOCAL_NECK_HEIGHT_MM,
             "pack_margin": PACK_MARGIN_MM,
             "pack_row_width": PACK_ROW_WIDTH_MM,
+        },
+        "connectivity": {
+            "components_before": components_before,
+            "components_after": components_after,
+            "target_install_components": TARGET_INSTALL_COMPONENTS,
+            "joined_local_gaps_mm": local_gaps,
+            "all_nearest_gaps_mm": all_gaps,
         },
         "water_inserts": insert_records,
         "terrain_cut_records": cut_records,

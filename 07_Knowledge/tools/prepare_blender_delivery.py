@@ -21,6 +21,15 @@ def point_camera(camera, target):
     camera.rotation_euler = (Vector(target) - camera.location).to_track_quat("-Z", "Y").to_euler()
 
 
+def force_material(obj, name, color):
+    material = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    material.diffuse_color = (*color, 1.0)
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+    for polygon in obj.data.polygons:
+        polygon.material_index = 0
+
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if len(args) != 3:
@@ -41,6 +50,13 @@ def main():
             visible.append(obj)
     if not visible:
         raise RuntimeError("No centered visible delivery meshes")
+
+    for obj in visible:
+        role = (obj.name + str(obj.get("Object type", "")) + str(obj.get("S03_geometry", "")) + str(obj.get("SYS01_geometry", ""))).lower()
+        if "trail" in role:
+            force_material(obj, "DELIVERY_Trail_Red", (0.85, 0.04, 0.02))
+        elif "water" in role:
+            force_material(obj, "DELIVERY_Water_Blue", (0.08, 0.30, 0.78))
 
     for obj in list(bpy.context.scene.objects):
         if obj.type in {"CAMERA", "LIGHT"}:
@@ -78,6 +94,18 @@ def main():
     scene.render.image_settings.file_format = "PNG"
     scene.render.filepath = str(preview)
     bpy.ops.render.render(write_still=True)
+    top_preview = preview.with_name(preview.stem + "_top.png")
+    side_preview = preview.with_name(preview.stem + "_side.png")
+    camera.location = (0, 0, 240)
+    point_camera(camera, (0, 0, 4))
+    scene.render.filepath = str(top_preview)
+    bpy.ops.render.render(write_still=True)
+    camera.location = (0, -210, 55)
+    point_camera(camera, (0, 0, 6))
+    scene.render.filepath = str(side_preview)
+    bpy.ops.render.render(write_still=True)
+    camera.location = (125, -145, 115)
+    point_camera(camera, (0, 0, 4))
     scene["交付提示"] = "打开即为相机视图；按小键盘0返回，Home查看全部可见模型。"
     report = {
         "visible_meshes": [obj.name for obj in visible],
@@ -89,6 +117,7 @@ def main():
         },
         "camera": list(camera.location),
         "default_view": "camera",
+        "views": {"assembled": preview.name, "top": top_preview.name, "side": side_preview.name},
     }
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     bpy.ops.wm.save_as_mainfile(filepath=str(output))

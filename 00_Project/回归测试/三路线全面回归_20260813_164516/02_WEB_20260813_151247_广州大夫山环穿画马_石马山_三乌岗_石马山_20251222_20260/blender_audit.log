@@ -1,0 +1,10 @@
+00:00.890  blend            | Read blend: "/Users/xingzhikabi/Documents/GPX_Terrain_Lab/08_Jobs/WEB_20260813_151247_广州大夫山环穿画马_石马山_三乌岗_石马山_20251222_20260/final/06_广州大夫山环穿画马_石马山_三乌岗_石马山_20251222_20260110_合并_完整设计预览.blend"
+Trailprint3D Launching Startup functions
+First name: Square Stand
+Trailprint3D Launching Startup functions
+First name: Square Stand
+{"status": "PASS", "checks": {"visible_trail": true, "visible_water": true, "trail_red": true, "water_blue": true}, "objects": [{"name": "Trail_Red_OnePiece_RouteCore_Endpoints", "role": "trail", "materials": [{"name": "DELIVERY_Trail_Red", "rgba": [0.85, 0.04, 0.02, 1.0]}], "bounds": {"x": [-33.21858215332031, 33.496376037597656], "y": [-24.257455825805664, 24.1796875], "z": [2.656017303466797, 19.422189712524414]}}, {"name": "route_WATER_Reinforced", "role": "water", "materials": [{"name": "DELIVERY_Water_Blue", "rgba": [0.08, 0.3, 0.78, 1.0]}], "bounds": {"x": [-29.33156967163086, 50.16512680053711], "y": [-17.137102127075195, 43.451942443847656], "z": [1.6157655715942383, 4.431222915649414]}}]}
+Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:31:22)
+
+Blender quit
+

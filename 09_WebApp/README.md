@@ -2,6 +2,9 @@
 
 本目录是“上传一条 GPX，交付 5 个 3MF + 1 个 Blender 项目”的本地 Web 入口。
 
+当前标准输入为“两步路”导出的 GPX，标准切片与打印软件为拓竹 Bambu Studio。
+“通用”是指不同两步路 GPX 共用一套工具链，不表示当前覆盖所有 GPX 方言和所有切片器。
+
 ## 启动
 
 双击 `start_local.command`，然后访问：
@@ -27,7 +30,7 @@
 - 从页面启动本机 TrailPrint3D + Blender，生成当前 GPX 的真实模型预览图和预览 `.blend`。
 - 固定输出装配、顶视、侧视三个 Blender 仿真机位；
 - 对任意 GPX 建立独立任务，运行路线无关的 TrailPrint3D → Blender → Bambu 流水线；
-- 星溪精确命中真机基准时复用封版成果；其他 GPX 必须独立建模；
+- 每次上传均新建任务并从当前 GPX 实时生成；包括星溪在内均禁止跨任务复用封版成品或几何；
 - 自动生成 5 个 3MF + 1 个 Blender，并检查 3MF 容器、平台边界、负 Z、文件头与 SHA-256；
 - 支持六件逐项下载、完整 ZIP 下载和刷新后恢复最近成果。
 
@@ -50,4 +53,4 @@ WEB02 已接入通用最终构建器。每次仿真都会新建独立 `08_Jobs/W
 5. “启动 Blender 仿真”应生成新的 `WEB_*` 任务目录，并将页面草模替换为 Blender 真实渲染；
 6. 页面必须明确区分 GPX 快速草模与 Blender 真实模型渲染；
 7. 星溪基准及新 GPX 均应生成六个独立下载入口与一个完整 ZIP，全部显示 QA PASS；
-8. 非基准 GPX 必须显示 `generic-route-neutral-pipeline` 来源，不得复用旧路线几何。
+8. 所有新任务必须显示 `current-upload-live-generated-pipeline` 来源，不得复用旧任务的 3MF、Blend 或几何；同一任务中断后允许按阶段续跑。

@@ -41,9 +41,7 @@ def main():
         root_model = temp_dir / "3dmodel.model"
         bambu.write_object_model(object_model, parts)
         bambu.write_main_model(root_model, parts)
-        settings = bambu.model_settings(parts).replace(
-            "星溪线_四件同盘".encode(), args.name.encode()
-        )
+        settings = bambu.model_settings(parts, args.name)
         project = json.loads(members["Metadata/project_settings.config"])
         colors = args.colors.split(",")
         project["filament_colour"] = colors

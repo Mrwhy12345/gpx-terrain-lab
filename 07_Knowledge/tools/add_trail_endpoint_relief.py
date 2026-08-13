@@ -14,7 +14,11 @@ import bpy
 
 
 EARTH_RADIUS_KM = 6371.0
-RELIEF_HEIGHT = 0.38
+RELIEF_HEIGHT = 0.55
+START_RADIUS = 1.80
+FINISH_OUTER_RADIUS = 2.10
+FINISH_INNER_RADIUS = 1.22
+FINISH_DOT_RADIUS = 0.62
 
 
 def geo_to_world(longitude, latitude, scale):
@@ -123,23 +127,24 @@ def main():
     end = geo_to_world(*lonlat[-1], scale)
     heading = math.atan2(second[1] - start[1], second[0] - start[0])
 
-    # Start: a compact arrow/triangle, wholly inside the existing circular pad.
-    start_top = local_top(trail, start, 1.8)
+    # Start: enlarged triangle for 0.4 mm nozzle legibility.  It intentionally
+    # overlaps the route body, so it is both a symbol and an endpoint grip pad.
+    start_top = local_top(trail, start, 2.4)
     arrow = prism(
-        "V011_Start_Arrow_Relief", start, 1.15,
+        "V011_Start_Arrow_Relief", start, START_RADIUS,
         start_top - 0.05, start_top + RELIEF_HEIGHT, 3, heading
     )
     union_and_remove(trail, arrow)
 
     # Finish: outer annular ridge plus central dot, attached to the existing
     # diamond pad. The shallow relief is legible despite using only red.
-    end_top = local_top(trail, end, 2.0)
-    outer = prism("V011_Finish_Target_Outer", end, 1.28, end_top - 0.05, end_top + RELIEF_HEIGHT, 48)
-    hole = prism("V011_Finish_Target_Hole", end, 0.78, end_top - 0.15, end_top + RELIEF_HEIGHT + 0.15, 48)
+    end_top = local_top(trail, end, 2.8)
+    outer = prism("V011_Finish_Target_Outer", end, FINISH_OUTER_RADIUS, end_top - 0.05, end_top + RELIEF_HEIGHT, 48)
+    hole = prism("V011_Finish_Target_Hole", end, FINISH_INNER_RADIUS, end_top - 0.15, end_top + RELIEF_HEIGHT + 0.15, 48)
     boolean(outer, hole, "DIFFERENCE")
     bpy.data.objects.remove(hole, do_unlink=True)
     union_and_remove(trail, outer)
-    dot = prism("V011_Finish_Target_Dot", end, 0.38, end_top - 0.05, end_top + RELIEF_HEIGHT, 32)
+    dot = prism("V011_Finish_Target_Dot", end, FINISH_DOT_RADIUS, end_top - 0.05, end_top + RELIEF_HEIGHT, 32)
     union_and_remove(trail, dot)
 
     trail.name = "S02_Trail_Red_Insert_StartArrow_FinishTarget"
@@ -151,12 +156,12 @@ def main():
         "source_blend": bpy.data.filepath,
         "output_blend": str(output_blend),
         "single_colour": "red",
-        "start_symbol": {"shape": "arrow", "radius_mm": 1.15},
+        "start_symbol": {"shape": "triangle", "radius_mm": START_RADIUS},
         "finish_symbol": {
             "shape": "bullseye",
-            "outer_radius_mm": 1.28,
-            "ring_inner_radius_mm": 0.78,
-            "dot_radius_mm": 0.38,
+            "outer_radius_mm": FINISH_OUTER_RADIUS,
+            "ring_inner_radius_mm": FINISH_INNER_RADIUS,
+            "dot_radius_mm": FINISH_DOT_RADIUS,
         },
         "relief_height_mm": RELIEF_HEIGHT,
         "trail_quality": quality(trail),

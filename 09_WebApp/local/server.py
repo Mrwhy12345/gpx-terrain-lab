@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Local-only web, Blender simulation, and validated-deliverable bridge."""
 from __future__ import annotations
-import hashlib, json, mimetypes, re, shutil, subprocess, sys, traceback, zipfile
+import hashlib, json, mimetypes, re, subprocess, sys, traceback, zipfile
 from urllib.parse import quote, unquote, urlsplit
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]; WEB_ROOT=Path(__file__).resolve().parent; JOBS_ROOT=ROOT/"08_Jobs"; TOOLS=ROOT/"07_Knowledge"/"tools"; BLENDER=Path("/Applications/Blender.app/Contents/MacOS/Blender")
-GOLDEN_DIR=JOBS_ROOT/"20260810_xingxi_water_rich_res8"/"final_tested_baseline"
-GOLDEN_GPX_SHA256="adce682daf0255bc617986d4ae5d69a976d233fa8dfc422365f14de4be89784c"
 FINAL_LABELS={
     "01":"沙盘地形", "02":"奖牌框适配底座", "03":"徒步轨迹",
     "04":"完整水网", "05":"四件同盘", "06":"Blender 设计项目",
@@ -21,20 +19,6 @@ def sha256(path):
         for chunk in iter(lambda:stream.read(1024*1024),b""): digest.update(chunk)
     return digest.hexdigest()
 def valid_job_id(value): return bool(re.fullmatch(r"WEB_[0-9A-Za-z\u4e00-\u9fff_-]+",value or ""))
-def is_true_baseline(job,gpx_path):
-    engineering=job.get("engineering",{}); water=engineering.get("trailprint_water",{})
-    checks={
-        "GPX SHA-256":sha256(gpx_path)==GOLDEN_GPX_SHA256,
-        "标题":job.get("route",{}).get("name")=="星溪竹林",
-        "日期":job.get("customer_input",{}).get("display_date")=="2026-07-12",
-        "尺寸":engineering.get("object_size_mm")==100,
-        "Resolution":engineering.get("terrain_resolution")==8,
-        "高程倍率":engineering.get("elevation_scale")==1.8,
-        "轨迹宽度":engineering.get("path_thickness_mm")==1.6,
-        "完整水网":all(water.get(key) is True for key in ("water","big_rivers","small_rivers","include_ocean")),
-    }
-    return all(checks.values()),checks
-
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(WEB_ROOT),**kwargs)
     def send_json(self,status,payload):
@@ -59,7 +43,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(404,{"ok":False,"error":"还没有可恢复的最终交付"}); return
         if decoded_path.startswith("/generated/"):
             parts=decoded_path.split("/")
-            if len(parts)==5 and parts[3]=="review" and re.fullmatch(r"WEB_[0-9A-Za-z\u4e00-\u9fff_-]+",parts[2]) and parts[4] in {"blender_preview.png","blender_preview_top.png","blender_preview_side.png"}:
+            if len(parts)==5 and parts[3]=="review" and re.fullmatch(r"WEB_[0-9A-Za-z\u4e00-\u9fff_-]+",parts[2]) and parts[4] in {"blender_preview.png","blender_preview_top.png","blender_preview_side.png","blender_delivery.png","blender_delivery_top.png","blender_delivery_side.png"}:
                 target=JOBS_ROOT/parts[2]/"review"/parts[4]
                 if target.exists():
                     data=target.read_bytes(); self.send_response(200); self.send_header("Content-Type","image/png"); self.send_header("Content-Length",str(len(data))); self.end_headers(); self.wfile.write(data); return
@@ -79,7 +63,7 @@ class Handler(SimpleHTTPRequestHandler):
             if route=="/api/finalize-job": self.finalize_job(payload); return
             gpx_text=payload["gpx_text"]; job=payload["job"]; stamp=datetime.now().strftime("%Y%m%d_%H%M%S"); job_id=f"WEB_{stamp}_{safe_slug(job['route']['name'])}"; job_dir=JOBS_ROOT/job_id
             for folder in ("input","work","review","final","process"): (job_dir/folder).mkdir(parents=True,exist_ok=False)
-            (job_dir/"input/route.gpx").write_text(gpx_text,encoding="utf-8"); web_facts=job["route"].get("facts",{}); job.update({"schema_version":"1.2-web-blender","job_id":job_id,"status":"blender_preview_requested"}); job["route"].update({"gpx":"input/route.gpx","facts":"review/gpx_facts.json","web_facts":web_facts}); (job_dir/"job.json").write_text(json.dumps(job,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+            gpx_path=job_dir/"input/route.gpx"; gpx_path.write_text(gpx_text,encoding="utf-8"); web_facts=job["route"].get("facts",{}); job.update({"schema_version":"1.3-web-live-build","job_id":job_id,"status":"blender_preview_requested","production_policy":{"geometry_source":"current_uploaded_gpx","cross_job_artifact_reuse":False,"same_job_stage_resume":True},"input_sha256":sha256(gpx_path)}); job["route"].update({"gpx":"input/route.gpx","facts":"review/gpx_facts.json","web_facts":web_facts}); (job_dir/"job.json").write_text(json.dumps(job,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
             first=subprocess.run([str(BLENDER),"--background","--python",str(TOOLS/"generate_job_trailprint.py"),"--",str(job_dir)],cwd=ROOT,text=True,capture_output=True,timeout=1800); (job_dir/"process/01_trailprint.log").write_text(first.stdout+"\n"+first.stderr,encoding="utf-8")
             if first.returncode: raise RuntimeError("TrailPrint3D 生成失败；详见 01_trailprint.log")
             source=job_dir/"work/trailprint_source.blend"; output=job_dir/"work/blender_preview.blend"; report=job_dir/"review/blender_preview.json"; preview=job_dir/"review/blender_preview.png"
@@ -92,21 +76,13 @@ class Handler(SimpleHTTPRequestHandler):
         if not valid_job_id(job_id): self.send_json(400,{"ok":False,"error":"任务编号无效"}); return
         job_dir=JOBS_ROOT/job_id; job_path=job_dir/"job.json"; gpx_path=job_dir/"input/route.gpx"
         if not job_path.is_file() or not gpx_path.is_file(): self.send_json(404,{"ok":False,"error":"找不到对应仿真任务，请先运行 Blender 仿真"}); return
-        job=json.loads(job_path.read_text(encoding="utf-8")); matched,checks=is_true_baseline(job,gpx_path)
+        job=json.loads(job_path.read_text(encoding="utf-8"))
         final_dir=job_dir/"final"; final_dir.mkdir(exist_ok=True)
-        if matched:
-            if not GOLDEN_DIR.is_dir(): raise FileNotFoundError("真机验证基准目录不存在")
-            golden=sorted(path for path in GOLDEN_DIR.iterdir() if path.suffix.lower() in {".3mf",".blend"})
-            for source in golden:
-                target=final_dir/source.name
-                if not target.exists() or sha256(target)!=sha256(source): shutil.copy2(source,target)
-            provenance="exact-gpx-and-parameter-match-to-tested-baseline"
-        else:
-            pipeline=subprocess.run([sys.executable,str(TOOLS/"run_generic_job_pipeline.py"),str(job_dir)],cwd=ROOT,text=True,capture_output=True,timeout=7200)
-            (job_dir/"process/03_generic_pipeline.log").write_text(pipeline.stdout+"\n"+pipeline.stderr,encoding="utf-8")
-            if pipeline.returncode: raise RuntimeError("通用 GPX 最终流水线失败；详见 process/03_generic_pipeline.log")
-            provenance="generic-route-neutral-pipeline"
-            checks={"GPX 独立建模":True,"通用流水线":True,"5+1 文件契约":True}
+        pipeline=subprocess.run([sys.executable,str(TOOLS/"run_generic_job_pipeline.py"),str(job_dir)],cwd=ROOT,text=True,capture_output=True,timeout=7200)
+        (job_dir/"process/03_generic_pipeline.log").write_text(pipeline.stdout+"\n"+pipeline.stderr,encoding="utf-8")
+        if pipeline.returncode: raise RuntimeError("本次 GPX 实时生产流水线失败；详见 process/03_generic_pipeline.log")
+        provenance="current-upload-live-generated-pipeline"
+        checks={"当前上传 GPX 独立建模":True,"禁止跨任务成品复用":True,"仅允许本任务断点续跑":True,"5+1 文件契约":True,"输入 GPX SHA-256":sha256(gpx_path)}
         sources=sorted(path for path in final_dir.iterdir() if path.suffix.lower() in {".3mf",".blend"})
         if len([p for p in sources if p.suffix.lower()==".3mf"])!=5 or len([p for p in sources if p.suffix.lower()==".blend"])!=1: raise RuntimeError("最终目录不是完整的 5+1 套装")
         files=[]
@@ -125,7 +101,9 @@ class Handler(SimpleHTTPRequestHandler):
         with zipfile.ZipFile(bundle,"w",zipfile.ZIP_DEFLATED,allowZip64=True) as archive:
             for item in files: archive.write(final_dir/item["name"],item["name"])
             archive.writestr("SHA256SUMS.json",json.dumps({item["name"]:item["sha256"] for item in files},ensure_ascii=False,indent=2))
-        manifest={"schema_version":"1.0","job_id":job_id,"status":"QA_PASS","provenance":provenance,"checks":checks,"files":files,"bundle":{"name":bundle.name,"url":f"/downloads/{job_id}/{quote(bundle.name)}","bytes":bundle.stat().st_size,"sha256":sha256(bundle)}}
+        preview_base=f"/generated/{job_id}/review/"
+        final_previews=[{"key":"assembled","label":"最终装配透视","url":preview_base+"blender_delivery.png"},{"key":"top","label":"最终顶视关系","url":preview_base+"blender_delivery_top.png"},{"key":"side","label":"最终侧视高度","url":preview_base+"blender_delivery_side.png"}]
+        manifest={"schema_version":"1.1","job_id":job_id,"status":"QA_PASS","provenance":provenance,"checks":checks,"previews":final_previews,"preview_url":final_previews[0]["url"],"files":files,"bundle":{"name":bundle.name,"url":f"/downloads/{job_id}/{quote(bundle.name)}","bytes":bundle.stat().st_size,"sha256":sha256(bundle)}}
         (job_dir/"review/final_manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
         job["status"]="final_ready"; job["deliverables"]["manifest"]="review/final_manifest.json"; job_path.write_text(json.dumps(job,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
         self.send_json(200,{"ok":True,**manifest})

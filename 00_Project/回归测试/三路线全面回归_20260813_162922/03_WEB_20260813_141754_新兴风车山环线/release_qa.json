@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "contract": "5x3MF+1xBlend",
+  "zip_test": "PASS",
+  "build_and_z_checks": [
+    "PASS 01_新兴风车山环线_沙盘地形.3mf: XY bounds=(125.0, 225.0, 116.69873, 203.30127)",
+    "PASS 01_新兴风车山环线_沙盘地形.3mf: no_tiny_terrain_components sizes=[[83182], [64637, 18671], [39602, 15442]]",
+    "PASS 02_新兴风车山环线_底座.3mf: XY bounds=(114.68977000000001, 235.31023, 107.49873, 212.50127)",
+    "PASS 03_新兴风车山环线_徒步轨迹.3mf: XY bounds=(151.93447, 198.02734, 126.47006999999999, 195.09225)",
+    "PASS 03_新兴风车山环线_徒步轨迹.3mf: geometric_connected_components=1",
+    "PASS 03_新兴风车山环线_徒步轨迹.3mf: build_plate_contact=4.09%",
+    "PASS 04_新兴风车山环线_河流水体.3mf: XY bounds=(129.67162, 220.32839, 128.79271, 191.20729)",
+    "PASS 05_新兴风车山环线_四件同盘.3mf: XY bounds=(49.689800000000005, 290.0, 78.47008, 272.5013)",
+    "PASS 05_新兴风车山环线_四件同盘.3mf: four_top_level_objects",
+    "PASS 01_新兴风车山环线_沙盘地形.3mf: min_z=0.000000, components=3",
+    "PASS 02_新兴风车山环线_底座.3mf: min_z=0.000000, components=2",
+    "PASS 03_新兴风车山环线_徒步轨迹.3mf: min_z=0.000000, components=1",
+    "PASS 04_新兴风车山环线_河流水体.3mf: min_z=0.000000, components=1",
+    "PASS 05_新兴风车山环线_四件同盘.3mf: min_z=0.000000, components=7"
+  ]
+}

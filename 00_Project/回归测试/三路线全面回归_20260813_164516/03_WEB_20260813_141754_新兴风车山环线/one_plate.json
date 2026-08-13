@@ -1,0 +1,35 @@
+{
+  "status": "PASS",
+  "top_level_objects": 4,
+  "material_parts": 7,
+  "objects": [
+    {
+      "id": 8,
+      "name": "新兴风车山环线_四件同盘_沙盘",
+      "role": "沙盘",
+      "parent_extruder": "1",
+      "material_parts": 3
+    },
+    {
+      "id": 9,
+      "name": "新兴风车山环线_四件同盘_底座",
+      "role": "底座",
+      "parent_extruder": "1",
+      "material_parts": 2
+    },
+    {
+      "id": 10,
+      "name": "新兴风车山环线_四件同盘_轨迹",
+      "role": "轨迹",
+      "parent_extruder": "5",
+      "material_parts": 1
+    },
+    {
+      "id": 11,
+      "name": "新兴风车山环线_四件同盘_水系",
+      "role": "水系",
+      "parent_extruder": "4",
+      "material_parts": 1
+    }
+  ]
+}

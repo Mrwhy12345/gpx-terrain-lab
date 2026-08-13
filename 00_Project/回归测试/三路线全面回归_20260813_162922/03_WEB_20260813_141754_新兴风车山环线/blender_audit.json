@@ -1,0 +1,69 @@
+{
+  "status": "PASS",
+  "checks": {
+    "visible_trail": true,
+    "visible_water": true,
+    "trail_red": true,
+    "water_blue": true
+  },
+  "objects": [
+    {
+      "name": "Trail_Red_OnePiece_RouteCore",
+      "role": "trail",
+      "materials": [
+        {
+          "name": "DELIVERY_Trail_Red",
+          "rgba": [
+            0.85,
+            0.04,
+            0.02,
+            1.0
+          ]
+        }
+      ],
+      "bounds": {
+        "x": [
+          -23.065532684326172,
+          23.02734375
+        ],
+        "y": [
+          -33.52992630004883,
+          35.092247009277344
+        ],
+        "z": [
+          2.510300874710083,
+          21.20553207397461
+        ]
+      }
+    },
+    {
+      "name": "route_WATER",
+      "role": "water",
+      "materials": [
+        {
+          "name": "DELIVERY_Water_Blue",
+          "rgba": [
+            0.08,
+            0.3,
+            0.78,
+            1.0
+          ]
+        }
+      ],
+      "bounds": {
+        "x": [
+          -49.96543884277344,
+          40.69133377075195
+        ],
+        "y": [
+          -18.963796615600586,
+          43.450782775878906
+        ],
+        "z": [
+          2.443028450012207,
+          14.218452453613281
+        ]
+      }
+    }
+  ]
+}
