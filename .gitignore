@@ -5,6 +5,8 @@ __pycache__/
 *.swp
 *.swo
 result.json
+.pnpm-store/
+08_Jobs/
 
 # Private route and source data
 02_GPX/

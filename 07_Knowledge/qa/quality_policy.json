@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "statuses": ["PASS", "FAIL", "NOT_TESTED", "NOT_APPLICABLE"],
+  "evidence_levels": {
+    "E0": "assumption_or_judgement",
+    "E1": "automated_static_check",
+    "E2": "blender_simulation_or_visual_review",
+    "E3": "bambu_studio_open_and_slice",
+    "E4": "physical_print",
+    "E5": "physical_assembly"
+  },
+  "scenarios": {
+    "Q0_INPUT_TRACEABILITY": {"required_for_basic_delivery": true},
+    "Q1_DELIVERY_INTEGRITY": {"required_for_basic_delivery": true},
+    "Q2_PRINTABILITY": {"required_for_basic_delivery": true},
+    "Q3_ASSEMBLABILITY": {"required_for_basic_delivery": true},
+    "Q4_ENGINEERING_FIDELITY": {"required_for_basic_delivery": false},
+    "Q5_CREATIVE_AESTHETICS": {"required_for_basic_delivery": false},
+    "Q6_USABILITY": {"required_for_basic_delivery": false}
+  },
+  "issue_priorities": {
+    "P0": "blocks_the_claimed_delivery_scenario",
+    "P1": "major_risk_or_missing_physical_evidence",
+    "P2": "quality_or_product_issue_without_basic_delivery_block",
+    "P3": "optimization"
+  },
+  "maturity_levels": {
+    "M0": "generated",
+    "M1": "slice_candidate",
+    "M2": "assembly_candidate",
+    "M3": "physical_print_and_assembly_passed",
+    "M4": "engineering_qualified",
+    "M5": "product_ready"
+  },
+  "escalation_rules": [
+    "A Q3 P1 risk becomes P0 when physical assembly fails.",
+    "NOT_TESTED must never be converted to PASS by another route's evidence.",
+    "A lower-priority scenario cannot hide failure in Q0-Q3."
+  ]
+}

@@ -1,0 +1,12 @@
+body{padding-bottom:94px}
+.stage-panel{display:none}
+body[data-stage="2"] .stage-panel.stage-2,body[data-stage="3"] .stage-panel.stage-3,body[data-stage="4"] .stage-panel.stage-4{display:block}
+body[data-stage="1"] .panel-grid{display:none}
+body[data-stage="1"] .workspace{padding-top:20px;background:transparent}
+body[data-stage="1"] .workspace .section-title,body[data-stage="1"] .acceptance{display:none}
+body[data-stage="2"] .panel-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:760px}
+body[data-stage="3"] .panel-grid,body[data-stage="4"] .panel-grid{grid-template-columns:minmax(300px,520px);justify-content:center}
+.action-bar{position:fixed;z-index:20;left:50%;bottom:16px;transform:translateX(-50%);width:min(1180px,calc(100% - 32px));margin:0;box-shadow:0 16px 50px #0d241a45}
+.section-title{align-items:center}.section-title h2{font-size:26px}
+.topbar nav button{transition:.2s}.topbar nav button.active{font-weight:700}
+@media(max-width:720px){body[data-stage="2"] .panel-grid{grid-template-columns:1fr}.action-bar{bottom:8px}.action-bar>div:first-child{display:none}.step-actions{width:100%}}

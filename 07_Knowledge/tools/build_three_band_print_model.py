@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the selected 1.50x, road-free, three-band printable terrain model."""
+"""Build a three-band printable terrain model without rescaling tested elevation."""
 
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ import bmesh
 import bpy
 
 
-VERTICAL_FACTOR = 1.50
+VERTICAL_FACTOR = 1.00
 BROWN_START = 0.52
 GRAY_START = 0.74
+MIN_COMPONENT_VERTICES = 500
 
 
 def quality(obj):
@@ -30,6 +31,8 @@ def quality(obj):
 
 def world_bounds(obj):
     points = [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
+    if not points:
+        raise RuntimeError(f"Cannot measure empty mesh: {obj.name}")
     return {
         axis: [min(point[i] for point in points), max(point[i] for point in points)]
         for i, axis in enumerate(("x", "y", "z"))
@@ -42,6 +45,41 @@ def recalculate_normals(obj):
     bmesh.ops.recalc_face_normals(editable, faces=editable.faces)
     editable.to_mesh(obj.data)
     editable.free()
+
+
+def remove_tiny_components(obj, minimum_vertices=MIN_COMPONENT_VERTICES):
+    """Remove boolean crumbs while preserving real disconnected summits."""
+    editable = bmesh.new()
+    editable.from_mesh(obj.data)
+    remaining = set(editable.verts)
+    groups = []
+    while remaining:
+        seed = remaining.pop()
+        group = {seed}
+        queue = [seed]
+        while queue:
+            vertex = queue.pop()
+            for edge in vertex.link_edges:
+                other = edge.other_vert(vertex)
+                if other in remaining:
+                    remaining.remove(other)
+                    group.add(other)
+                    queue.append(other)
+        groups.append(group)
+    removed = [group for group in groups if len(group) < minimum_vertices]
+    if removed:
+        bmesh.ops.delete(
+            editable,
+            geom=[vertex for group in removed for vertex in group],
+            context="VERTS",
+        )
+        editable.to_mesh(obj.data)
+        obj.data.update()
+    kept_sizes = sorted((len(group) for group in groups if len(group) >= minimum_vertices), reverse=True)
+    removed_sizes = sorted((len(group) for group in removed), reverse=True)
+    editable.free()
+    return {"kept_components": len(kept_sizes), "kept_vertex_counts": kept_sizes,
+            "removed_components": len(removed_sizes), "removed_vertex_counts": removed_sizes}
 
 
 def assign_material(obj, name, color):
@@ -76,7 +114,7 @@ def intersect_copy(source, name, tag, min_z, max_z, color):
     box = intersection_box(name + "_Cutter", bounds, min_z, max_z)
     modifier = result.modifiers.new("Elevation band intersection", "BOOLEAN")
     modifier.operation = "INTERSECT"
-    modifier.solver = "EXACT"
+    modifier.solver = "MANIFOLD"
     modifier.object = box
     bpy.context.view_layer.objects.active = result
     result.select_set(True)
@@ -84,6 +122,9 @@ def intersect_copy(source, name, tag, min_z, max_z, color):
     result.select_set(False)
     bpy.data.objects.remove(box, do_unlink=True)
     recalculate_normals(result)
+    if not result.data.vertices:
+        raise RuntimeError(f"Elevation band {name} is empty after intersection")
+    result["component_cleanup"] = json.dumps(remove_tiny_components(result), ensure_ascii=False)
     result["Object type"] = tag
     result["S06_geometry"] = tag.lower()
     result["Vertical factor"] = VERTICAL_FACTOR
@@ -118,6 +159,7 @@ def main():
         and (
             obj == terrain
             or obj.get("Object type") in {"TRAIL", "TRAIL_INSERT"}
+            or obj.get("Object type") in {"WATER", "OCEAN"}
             or obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
             or obj.get("S04_geometry") == "residential_areas_printable"
         )
@@ -175,6 +217,7 @@ def main():
                 "name": obj.name,
                 "bounds": world_bounds(obj),
                 "quality": quality(obj),
+                "component_cleanup": json.loads(obj["component_cleanup"]),
             }
             for obj in bands
         ],

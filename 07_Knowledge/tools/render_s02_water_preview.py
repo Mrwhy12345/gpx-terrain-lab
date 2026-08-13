@@ -35,7 +35,7 @@ def main():
         for obj in bpy.context.scene.objects
         if obj.get("Object type") == "MAP"
     )
-    terrain_mat = material("QA_Terrain", (0.52, 0.38, 0.22))
+    terrain_mat = material("QA_Terrain_Green", (0.247, 0.557, 0.263))
     trail_mat = material("QA_Trail", (0.95, 0.05, 0.03))
     water_mat = material("QA_Water", (0.01, 0.28, 1.0))
     road_mat = material("QA_Road", (0.035, 0.04, 0.05))
@@ -43,7 +43,10 @@ def main():
     for obj in bpy.context.scene.objects:
         if obj.get("Object type") in {"TRAIL", "TRAIL_INSERT"}:
             assign(obj, trail_mat)
-        elif obj.get("S02_geometry") in {"stream_ribbon", "water_area"}:
+        elif (
+            obj.get("Object type") in {"WATER", "OCEAN"}
+            or obj.get("S02_geometry") in {"stream_ribbon", "water_area"}
+        ):
             assign(obj, water_mat)
         elif obj.get("S03_geometry") == "roads_printable":
             assign(obj, road_mat)

@@ -72,7 +72,15 @@ def write_object_model(destination: Path, parts):
     ET.ElementTree(model).write(destination, encoding="utf-8", xml_declaration=True)
 
 
-def write_main_model(destination: Path, parts):
+GROUPS = (
+    ("沙盘", (1, 2, 3)),
+    ("底座", (4, 5)),
+    ("轨迹", (6,)),
+    ("水系", (7,)),
+)
+
+
+def write_main_model(destination: Path, parts, grouped=False):
     model = ET.Element(
         f"{{{CORE}}}model",
         {"unit": "millimeter", "xml:lang": "en-US", "requiredextensions": "p"},
@@ -82,68 +90,65 @@ def write_main_model(destination: Path, parts):
     )
     ET.SubElement(model, f"{{{CORE}}}metadata", {"name": "BambuStudio:3mfVersion"}).text = "1"
     resources = ET.SubElement(model, f"{{{CORE}}}resources")
-    assembly_id = max(item[0] for item in parts) + 1
-    assembly = ET.SubElement(
-        resources,
-        f"{{{CORE}}}object",
-        {"id": str(assembly_id), "type": "model", f"{{{PROD}}}UUID": str(uuid.uuid4())},
-    )
-    components = ET.SubElement(assembly, f"{{{CORE}}}components")
-    for object_id, _path, _extruder in parts:
-        ET.SubElement(
-            components,
-            f"{{{CORE}}}component",
-            {
-                "objectid": str(object_id),
-                f"{{{PROD}}}path": "/3D/Objects/object_1.model",
-                f"{{{PROD}}}UUID": str(uuid.uuid4()),
-            },
+    first_group_id = max(item[0] for item in parts) + 1
+    groups = GROUPS if grouped else (("模型", tuple(item[0] for item in parts)),)
+    group_ids = []
+    for offset, (_label, member_ids) in enumerate(groups):
+        group_id = first_group_id + offset
+        group_ids.append(group_id)
+        assembly = ET.SubElement(
+            resources, f"{{{CORE}}}object",
+            {"id": str(group_id), "type": "model", f"{{{PROD}}}UUID": str(uuid.uuid4())},
         )
+        components = ET.SubElement(assembly, f"{{{CORE}}}components")
+        for object_id in member_ids:
+            ET.SubElement(
+                components, f"{{{CORE}}}component",
+                {"objectid": str(object_id), f"{{{PROD}}}path": "/3D/Objects/object_1.model", f"{{{PROD}}}UUID": str(uuid.uuid4())},
+            )
     build = ET.SubElement(model, f"{{{CORE}}}build", {f"{{{PROD}}}UUID": str(uuid.uuid4())})
-    ET.SubElement(
-        build,
-        f"{{{CORE}}}item",
-        {
-            "objectid": str(assembly_id),
-            f"{{{PROD}}}UUID": str(uuid.uuid4()),
-            "transform": "1 0 0 0 1 0 0 0 1 175 160 0",
-            "printable": "1",
-        },
-    )
+    for group_id in group_ids:
+        ET.SubElement(
+            build, f"{{{CORE}}}item",
+            {"objectid": str(group_id), f"{{{PROD}}}UUID": str(uuid.uuid4()), "transform": "1 0 0 0 1 0 0 0 1 175 160 0", "printable": "1"},
+        )
     ET.ElementTree(model).write(destination, encoding="utf-8", xml_declaration=True)
 
 
-def model_settings(parts):
-    assembly_id = max(item[0] for item in parts) + 1
+def model_settings(parts, project_name="模型", grouped=False):
+    first_group_id = max(item[0] for item in parts) + 1
+    parts_by_id = {item[0]: item for item in parts}
     root = ET.Element("config")
-    obj = ET.SubElement(root, "object", {"id": str(assembly_id)})
-    ET.SubElement(obj, "metadata", {"key": "name", "value": "星溪线_四件同盘"})
-    ET.SubElement(obj, "metadata", {"key": "extruder", "value": "1"})
-    for object_id, path, extruder in parts:
-        vertices, triangles = read_binary_stl(path)
-        del vertices
-        part = ET.SubElement(obj, "part", {"id": str(object_id), "subtype": "normal_part"})
-        ET.SubElement(part, "metadata", {"key": "name", "value": path.stem})
-        ET.SubElement(part, "metadata", {"key": "source_file", "value": path.name})
-        ET.SubElement(part, "metadata", {"key": "extruder", "value": str(extruder)})
-        ET.SubElement(part, "mesh_stat", {"face_count": str(len(triangles))})
+    groups = GROUPS if grouped else (("", tuple(item[0] for item in parts)),)
+    group_ids = []
+    for offset, (label, member_ids) in enumerate(groups):
+        group_id = first_group_id + offset; group_ids.append(group_id)
+        obj = ET.SubElement(root, "object", {"id": str(group_id)})
+        object_name = f"{project_name}_{label}" if label else project_name
+        ET.SubElement(obj, "metadata", {"key": "name", "value": object_name})
+        # Bambu Studio applies the parent object's extruder to singleton groups.
+        # Preserve child-part colours for multi-material objects, while assigning
+        # trail/water parents to their actual red/blue filament slots.
+        parent_extruder = parts_by_id[member_ids[0]][2] if len(member_ids) == 1 else 1
+        ET.SubElement(obj, "metadata", {"key": "extruder", "value": str(parent_extruder)})
+        for object_id in member_ids:
+            _id, path, extruder = parts_by_id[object_id]
+            vertices, triangles = read_binary_stl(path); del vertices
+            part = ET.SubElement(obj, "part", {"id": str(object_id), "subtype": "normal_part"})
+            ET.SubElement(part, "metadata", {"key": "name", "value": path.stem})
+            ET.SubElement(part, "metadata", {"key": "source_file", "value": path.name})
+            ET.SubElement(part, "metadata", {"key": "extruder", "value": str(extruder)})
+            ET.SubElement(part, "mesh_stat", {"face_count": str(len(triangles))})
     plate = ET.SubElement(root, "plate")
     ET.SubElement(plate, "metadata", {"key": "plater_id", "value": "1"})
-    ET.SubElement(plate, "metadata", {"key": "plater_name", "value": "星溪线_四件同盘"})
-    instance = ET.SubElement(plate, "model_instance")
-    ET.SubElement(instance, "metadata", {"key": "object_id", "value": str(assembly_id)})
-    ET.SubElement(instance, "metadata", {"key": "instance_id", "value": "0"})
+    ET.SubElement(plate, "metadata", {"key": "plater_name", "value": project_name})
+    for instance_id, group_id in enumerate(group_ids):
+        instance = ET.SubElement(plate, "model_instance")
+        ET.SubElement(instance, "metadata", {"key": "object_id", "value": str(group_id)})
+        ET.SubElement(instance, "metadata", {"key": "instance_id", "value": str(instance_id)})
     assemble = ET.SubElement(root, "assemble")
-    ET.SubElement(
-        assemble,
-        "assemble_item",
-        {
-            "object_id": str(assembly_id),
-            "instance_id": "0",
-            "transform": "1 0 0 0 1 0 0 0 1 0 0 0",
-            "offset": "0 0 0",
-        },
-    )
+    for instance_id, group_id in enumerate(group_ids):
+        ET.SubElement(assemble, "assemble_item", {"object_id": str(group_id), "instance_id": str(instance_id), "transform": "1 0 0 0 1 0 0 0 1 0 0 0", "offset": "0 0 0"})
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
@@ -152,6 +157,7 @@ def main():
     parser.add_argument("source_dir", type=Path)
     parser.add_argument("template_3mf", type=Path)
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--name", default="四件同盘")
     args = parser.parse_args()
     specs = [
         ("01_Terrain_Low_Green.stl", 1),
@@ -169,17 +175,19 @@ def main():
         object_model = temp_dir / "object_1.model"
         main_model = temp_dir / "3dmodel.model"
         write_object_model(object_model, parts)
-        write_main_model(main_model, parts)
+        write_main_model(main_model, parts, grouped=True)
         with ZipFile(args.template_3mf) as template:
             settings = json.loads(template.read("Metadata/project_settings.config"))
         settings["print_sequence"] = "by layer"
-        settings["filament_colour"][:5] = [
+        palette = [
             "#3F8E43",
             "#6F5034",
             "#858C91",
             "#2563B8",
-            "#C12E1F",
+            "#D93025",
         ]
+        settings["filament_colour"] = palette
+        settings["default_filament_colour"] = palette
         content_types = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -200,7 +208,7 @@ def main():
             archive.write(main_model, "3D/3dmodel.model")
             archive.write(object_model, "3D/Objects/object_1.model")
             archive.writestr("3D/_rels/3dmodel.model.rels", model_relationships)
-            archive.writestr("Metadata/model_settings.config", model_settings(parts))
+            archive.writestr("Metadata/model_settings.config", model_settings(parts, args.name, grouped=True))
             archive.writestr(
                 "Metadata/project_settings.config",
                 json.dumps(settings, ensure_ascii=False, indent=4).encode("utf-8"),
