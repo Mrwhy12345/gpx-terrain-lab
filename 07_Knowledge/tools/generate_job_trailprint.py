@@ -9,6 +9,12 @@ from pathlib import Path
 
 import bpy
 
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+
+from terrain_height_policy import resolve_terrain_height_policy
+
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
@@ -16,7 +22,9 @@ def main():
         raise SystemExit("Expected JOB_DIR")
     job_dir = Path(args[0]).resolve()
     job = json.loads((job_dir / "job.json").read_text())
-    gpx = job_dir / job["route"]["gpx"]
+    # Keep the original upload immutable for provenance. Non-local scenes may
+    # use a derived print-scale GPX whose endpoints and overall shape match it.
+    gpx = job_dir / job["route"].get("model_gpx", job["route"]["gpx"])
     export_dir = job_dir / "work/trailprint_export"
     export_dir.mkdir(parents=True, exist_ok=True)
     blend_path = job_dir / "work/trailprint_source.blend"
@@ -29,14 +37,31 @@ def main():
     engineering = job.get("engineering", {})
     water = engineering.get("trailprint_water", {})
     elements = engineering.get("trailprint_elements", {})
+    regional_water_limit_override = None
+    if engineering.get("water_policy") in {
+        "major_only_optional_at_regional_scale",
+        "regional_route_corridor_major_water",
+    }:
+        # TrailPrint's stock 500 km cap is conservative for a query that also
+        # includes small rivers. Regional mode disables small rivers/ocean and
+        # raises only the major-water gate; the source data and any failure stay
+        # explicit in the job log instead of inventing a synthetic waterway.
+        from bl_ext.user_default.trailprint3d import constants as tp_constants
+        regional_water_limit_override = 750
+        tp_constants.WATER_MAXSIZE = regional_water_limit_override
     props.file_path = str(gpx)
     props.export_path = str(export_dir)
     props.generation_mode = "GENERATION"
     props.shape = "HEXAGON"
     props.objSize = int(engineering.get("object_size_mm", 100))
-    props.scaleElevation = float(engineering.get("elevation_scale", 1.8))
+    height_policy = resolve_terrain_height_policy(
+        engineering,
+        job.get("route_profile", {}),
+    )
+    props.minThickness = height_policy["minimum_terrain_thickness_mm"]
+    props.fixedElevationScale = height_policy["fixed_elevation_scale_10mm"]
+    props.scaleElevation = height_policy["effective_elevation_scale"]
     props.num_subdivisions = int(engineering.get("terrain_resolution", 4))
-    props.minThickness = 2.0
     props.pathThickness = float(engineering.get("path_thickness_mm", 1.6))
     props.singleColorMode = bool(engineering.get("single_color_trail", True))
     props.scalemode = engineering.get("scale_mode", "FACTOR")
@@ -95,6 +120,11 @@ def main():
     ]
     if not maps:
         raise RuntimeError(f"TrailPrint3D returned {result}, but no terrain object exists")
+    terrain_z = sorted(
+        (maps[0].matrix_world @ vertex.co).z
+        for vertex in maps[0].data.vertices
+    )
+    height_policy["actual_terrain_height_mm"] = terrain_z[-1] - terrain_z[0]
     bpy.context.scene["job_id"] = job["job_id"]
     bpy.context.scene["route_name"] = job["route"]["name"]
     bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
@@ -108,6 +138,7 @@ def main():
         "terrain_resolution": props.num_subdivisions,
         "object_size_mm": props.objSize,
         "elevation_scale": props.scaleElevation,
+        "terrain_height_policy": height_policy,
         "path_thickness_mm": props.pathThickness,
         "single_color_trail": props.singleColorMode,
         "single_color_trail_requested": requested_single_color_trail,
@@ -117,6 +148,9 @@ def main():
         "element_mode": props.elementMode,
         "requested_water_settings": water,
         "requested_element_settings": elements,
+        "route_profile": job.get("route_profile", {}),
+        "model_gpx": str(gpx),
+        "regional_water_limit_override_km": regional_water_limit_override,
     }
     (job_dir / "review/trailprint_generation.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
