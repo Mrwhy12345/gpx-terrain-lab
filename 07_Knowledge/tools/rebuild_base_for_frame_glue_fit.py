@@ -24,6 +24,7 @@ RECESS_DEPTH = 0.8
 BEVEL = 1.2
 MAGNET_DIAMETER = 5.3
 MAGNET_DEPTH = 3.2
+RING_SAFETY = 0.04
 
 
 def line_intersection(a, b, c, d):
@@ -46,6 +47,29 @@ def offset_polygon(points, distance):
         line_intersection(shifted[i - 1][0], shifted[i - 1][1], shifted[i][0], shifted[i][1])
         for i in range(len(points))
     ]
+
+
+def point_inside_convex(point, polygon, tolerance=1e-7):
+    return all(
+        (polygon[(i + 1) % len(polygon)].x - polygon[i].x) * (point.y - polygon[i].y)
+        - (polygon[(i + 1) % len(polygon)].y - polygon[i].y) * (point.x - polygon[i].x)
+        >= -tolerance
+        for i in range(len(polygon))
+    )
+
+
+def largest_parallel_outer(recess, frame_limit):
+    """Largest true parallel offset of the recess contained by the frame."""
+    low, high = 0.0, 20.0
+    for _ in range(60):
+        distance = (low + high) / 2
+        candidate = offset_polygon(recess, distance)
+        if all(point_inside_convex(point, frame_limit) for point in candidate):
+            low = distance
+        else:
+            high = distance
+    distance = max(0.0, low - RING_SAFETY)
+    return offset_polygon(recess, distance), distance
 
 
 def prism(name, outline, z0, z1):
@@ -99,7 +123,11 @@ def main():
         Vector((cx - width / 4, cy + height / 2)), Vector((cx - width / 2, cy)),
     ]
     recess = offset_polygon(terrain_hex, RECESS_CLEARANCE)
-    outer = [p + Vector((cx, cy)) for p in offset_polygon(FRAME_INNER, -CLEARANCE)]
+    frame_limit = [p + Vector((cx, cy)) for p in offset_polygon(FRAME_INNER, -CLEARANCE)]
+    # The visible inner and outer contours must come from one offset chain.
+    # Fitting the measured (slightly irregular) frame contour directly made
+    # the border visibly non-parallel to the regular terrain seat.
+    outer, visible_ring_width = largest_parallel_outer(recess, frame_limit)
 
     old_base = next(
         (o for o in bpy.context.scene.objects if o.get("S05_geometry") == "display_base"),
@@ -144,6 +172,9 @@ def main():
     base["Frame fit method"] = "frame_inner_true_parallel_offset"
     base["Frame clearance mm"] = CLEARANCE
     base["Slot clearance mm"] = RECESS_CLEARANCE
+    base["Visible ring width mm"] = visible_ring_width
+    base["Outer contour vertices"] = json.dumps([[p.x, p.y] for p in outer])
+    base["Recess contour vertices"] = json.dumps([[p.x, p.y] for p in recess])
     base["Rubber strip recommendation mm"] = "0.3-0.5 soft silicone, discontinuous placement"
     base["Side edge angle deg"] = math.degrees(
         math.atan2(outer[2].y - outer[1].y, outer[2].x - outer[1].x)
@@ -156,10 +187,13 @@ def main():
         (outer[(i+1)%6] - outer[i]).length for i in range(6)
     ]
     report = {
-        "method": "measured_frame_inner_contour_true_parallel_inset",
+        "method": "terrain_recess_true_parallel_outer_inscribed_in_measured_frame",
         "frame_inner_vertices": [[p.x, p.y] for p in FRAME_INNER],
         "clearance_mm_per_edge": CLEARANCE,
         "base_outer_vertices": [[p.x, p.y] for p in outer],
+        "recess_vertices": [[p.x, p.y] for p in recess],
+        "visible_ring_width_mm": visible_ring_width,
+        "ring_parallelism": "exact_by_shared_parallel_offset",
         "base_outer_bounds_mm": [
             max(p.x for p in outer)-min(p.x for p in outer),
             max(p.y for p in outer)-min(p.y for p in outer),

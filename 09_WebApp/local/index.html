@@ -1,30 +1,123 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPX Terrain Lab｜本地徒步沙盘工作台</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="wizard.css"><link rel="stylesheet" href="placeholders.css"><link rel="stylesheet" href="flow.css"></head>
-<body><main>
-<header class="topbar">
-  <div class="brand"><span class="brand-mark">⌁</span><div><strong>GPX Terrain Lab</strong><small>本地徒步沙盘工作台</small></div></div>
-  <nav aria-label="制作步骤"><button class="stage-tab active" data-stage="1">01 输入</button><button class="stage-tab" data-stage="2">02 工程</button><button class="stage-tab" data-stage="3">03 创意</button><button class="stage-tab" data-stage="4">04 输出</button></nav>
-  <div class="local-pill"><i></i>本地模式 · 数据不离开电脑</div>
-</header>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GPX Terrain Lab｜异步徒步沙盘工作台</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="wizard.css">
+  <link rel="stylesheet" href="placeholders.css">
+  <link rel="stylesheet" href="flow.css">
+  <link rel="stylesheet" href="single-page.css?v=20260820-2">
+  <link rel="stylesheet" href="dashboard.css?v=20260820-10">
+</head>
+<body>
+<main class="app-shell">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">⌁</span><div><strong>GPX Terrain Lab</strong><small>TrailPrint3D → Blender → Bambu Studio</small></div></div>
+    <nav aria-label="制作阶段">
+      <button class="stage-tab active" data-stage="1">01 输入</button>
+      <button class="stage-tab" data-stage="2">02 工程</button>
+      <button class="stage-tab" data-stage="3">03 仿真</button>
+      <button class="stage-tab" data-stage="4">04 交付</button>
+    </nav>
+    <div class="local-pill"><i></i>制作服务在线</div>
+  </header>
 
-<section id="stage-1" class="hero-grid">
-  <div class="intro"><p class="eyebrow">TRAILPRINT3D → BAMBU STUDIO</p><h1>把一条轨迹，<br><em>变成可触摸的山河。</em></h1><p class="lead">上传 GPX，使用真机验证参数生成地形、水网、轨迹与奖牌框底座。一次配置，交付 5 个 3MF 和 1 个 Blender 项目。</p>
-    <label class="upload-card"><input id="gpx" type="file" accept=".gpx,application/gpx+xml"><span class="upload-icon">＋</span><span><b id="file-name">拖入或选择 GPX 文件</b><small id="file-facts">文件只在本机读取，不会上传</small></span><strong id="file-action">选择文件</strong></label>
-    <div class="trust-row"><span>✓ TrailPrint3D 原生数据</span><span>✓ Bambu 多色适配</span><span>✓ 可断点复用</span></div>
-  </div>
-  <div class="preview-card"><div class="preview-head"><div><span id="preview-kind">GPX 快速草模 · 非最终渲染</span><b id="preview-title">未命名徒步</b></div><span id="preview-status" class="status-dot">● 等待 GPX</span></div><canvas id="terrain" class="terrain-canvas"></canvas><img id="render-result" class="render-result" alt="Blender 工程模型仿真"><div class="preview-truth">轨迹形状来自当前 GPX；Blender 仿真使用真实地形、水系与轨迹几何，但仍不是 Bambu 切片后的最终打印预览。</div><div class="legend"><span><i class="green"></i>地形示意</span><span><i class="brown"></i>高程示意</span><span><i class="blue"></i>水系示意</span><span><i class="red"></i>GPX 轨迹</span></div><div class="model-meta"><div><small>模型尺寸</small><b id="meta-size">100 mm</b></div><div><small>地形精度</small><b id="meta-r">R8</b></div><div><small>输出零件</small><b>5 + 1</b></div></div></div>
-</section>
+  <section id="task-receipt" class="task-receipt global-task" role="status" aria-live="polite">
+    <div class="receipt-identity"><b id="task-receipt-title">匿名任务队列</b><span id="task-receipt-id">尚未提交任务</span><select id="task-switch" aria-label="切换本浏览器任务" hidden></select></div>
+    <div class="task-progress"><strong id="task-receipt-state">可以开始</strong><small id="task-queue-summary">上传后可离开页面，任务会在后台继续。</small></div>
+    <ol id="task-steps" class="task-steps"><li>读取路线</li><li>生成预览</li><li>制作文件</li><li>检查下载</li></ol>
+    <button id="new-task" class="ghost" type="button">＋ 新建 GPX 任务</button>
+  </section>
 
-<section id="stage-2" class="workspace"><div class="section-title"><div><span>参数工作台</span><h2>从真机基线开始，只调整必要的部分</h2></div><button id="reset" class="ghost">↺ 恢复真机参数</button></div>
-  <div class="panel-grid">
-    <article id="stage-3" class="panel stage-panel stage-3"><div class="panel-no">03</div><h3>创意信息</h3><label>徒步标题<input id="title" value="" placeholder="上传后自动使用 GPX 文件名"></label><label>展示日期<input id="date" type="date" value="2026-07-12"></label><div class="mini-note">标题与底部 Logo 将在创意阶段保持同一主题。</div></article>
-    <article class="panel stage-panel stage-2"><div class="panel-no">02</div><h3>地形与轨迹</h3><label class="param"><span>模型尺寸<b id="size-v">100 mm</b></span><input id="size" type="range" min="80" max="180" step="5" value="100"></label><label class="param"><span>Resolution<b id="resolution-v">8</b></span><input id="resolution" type="range" min="4" max="10" value="8"></label><label class="param"><span>高程倍率<b id="elevation-v">1.80</b></span><input id="elevation" type="range" min="1" max="3" step="0.1" value="1.8"></label><label class="param"><span>轨迹宽度<b id="path-v">1.60 mm</b></span><input id="path" type="range" min="1" max="2.4" step="0.1" value="1.6"></label></article>
-    <article class="panel stage-panel stage-2"><div class="panel-no">02</div><h3>TrailPrint3D 元素</h3><label class="toggle-row"><span><b>完整水网</b><small>湖泊 · 大河 · 小河 · 海岸</small></span><input id="water" type="checkbox" checked><i></i></label><label class="toggle-row"><span><b>森林</b><small>Threshold 10.00</small></span><input id="forest" type="checkbox"><i></i></label><label class="toggle-row"><span><b>城市边界</b><small>Threshold 1.00</small></span><input id="city" type="checkbox"><i></i></label><div class="source-stamp">数据源固定为 TrailPrint3D</div></article>
-    <article id="stage-4" class="panel output-panel stage-panel stage-4"><div class="panel-no">04</div><h3>Bambu 输出</h3><ul><li><b>01</b>三色沙盘地形<span>绿 · 棕 · 灰</span></li><li><b>02</b>奖牌框适配底座<span>灰 · 棕</span></li><li><b>03</b>徒步轨迹<span>红</span></li><li><b>04</b>原生完整水网<span>蓝</span></li><li><b>05</b>四件同盘<span>6 色槽位</span></li><li><b>06</b>Blender 设计预览<span>.blend</span></li></ul></article>
-  </div>
-  <div class="action-bar"><div><span id="baseline" class="pass">✓ 真机基线一致</span><small id="step-hint">第 2 步：确认工程参数，然后进入创意设计。</small></div><div class="step-actions"><button id="previous" class="secondary">← 上一步</button><button id="next">下一步：创意设计 <span>→</span></button><button id="simulate" class="simulate" disabled hidden>启动 Blender 仿真</button><button id="download" disabled hidden>生成最终 5+1 <span>→</span></button></div></div>
-  <details class="acceptance"><summary>验收方法与通过标准</summary><ol><li><b>上传：</b>选择 GPX 后，应显示文件名、轨迹点数和里程，红色轨迹应变成该 GPX 的真实平面形状，“下一步”变为可用。</li><li><b>工程：</b>默认值应为 100 mm / R8 / 1.80 / 1.60 mm；改动参数后提示偏离基线，恢复按钮可复原。</li><li><b>创意：</b>修改标题后，预览卡标题立即同步；日期应进入底座设计。</li><li><b>仿真：</b>输出页先显示 Blender 装配、顶视、侧视三个机位，完成后开放“生成最终 5+1”。</li><li><b>下载：</b>生成后应出现 5 个 3MF、1 个 Blender 的逐件下载，以及一个包含 SHA-256 清单的完整 ZIP。</li><li><b>安全：</b>不匹配真机验证基准的输入必须阻止复用旧模型；GPX 不发往网络。</li></ol></details>
-</section>
-<footer><span>GPX Terrain Lab · 荣耀大地五人组</span><span>TrailPrint3D 获取事实 · Blender 构建 · Bambu Studio 打印</span></footer>
-</main><script src="app.js"></script></body></html>
+  <section class="dashboard-grid">
+    <aside class="control-column" aria-label="输入和工程参数">
+      <section id="stage-1" class="console-card input-card">
+        <header><span>01 上传</span><b>选择徒步路线</b></header>
+        <label class="upload-card"><input id="gpx" type="file" accept=".gpx,application/gpx+xml"><span class="upload-icon">＋</span><span><b id="file-name">上传 GPX</b><small id="file-facts">支持两步路导出的 GPX</small></span><strong id="file-action">选择文件</strong></label>
+        <div class="trust-row"><span>本机处理</span><span>可关闭页面</span><span>自动恢复</span></div>
+      </section>
+
+      <section id="stage-2" class="console-card compact-params stage-panel stage-2">
+        <header><span>02 设置</span><b>模型参数</b><button id="reset" class="text-action" type="button">恢复推荐值</button></header>
+        <div class="param-grid">
+          <label class="param"><span>尺寸<b id="size-v">100 mm</b></span><input id="size" type="range" min="80" max="180" step="5" value="100"></label>
+          <label class="param"><span>地形精度<b id="resolution-v">8</b></span><input id="resolution" type="range" min="4" max="10" value="8"></label>
+          <label class="param"><span>高程<b id="elevation-v">1.80</b></span><input id="elevation" type="range" min="0.3" max="3" step="0.1" value="1.8"></label>
+          <label class="param"><span>轨迹宽度<b id="path-v">1.60 mm</b></span><input id="path" type="range" min="1" max="2.4" step="0.1" value="1.6"></label>
+        </div>
+        <div class="panel-live"><span>模型摘要</span><b id="engineering-live">上传后自动计算</b></div>
+      </section>
+
+      <section id="stage-3" class="console-card creative-card stage-panel stage-3">
+        <header><span>03 作品</span><b>标题与地图元素</b></header>
+        <div class="creative-fields"><label>徒步标题<input id="title" value="" placeholder="上传后采用文件名"></label><label>展示日期<input id="date" type="date" value="2026-07-12"></label></div>
+        <div class="toggle-grid">
+          <label class="toggle-row"><span><b>水系</b><small>湖泊 · 河流</small></span><input id="water" type="checkbox" checked><i></i></label>
+          <label class="toggle-row"><span><b>森林</b><small>T 10.00</small></span><input id="forest" type="checkbox"><i></i></label>
+          <label class="toggle-row"><span><b>城市</b><small>T 1.00</small></span><input id="city" type="checkbox"><i></i></label>
+        </div>
+        <div class="dual-live"><span><b id="creative-live">上传后采用文件名</b></span><span><b id="elements-live">水系开启 · 森林关闭 · 城市关闭</b></span></div>
+      </section>
+
+      <div class="baseline-row"><span id="baseline" class="pass">✓ 已采用推荐参数</span><small id="step-hint">上传 GPX 后即可生成预览。</small></div>
+    </aside>
+
+    <section class="preview-card visual-column" aria-label="两阶段图像结果">
+      <div class="preview-head"><div><span id="preview-kind">路线概览</span><b id="preview-title">上传 GPX，开始制作</b></div><span id="preview-status" class="status-dot">● 等待上传</span></div>
+
+      <div class="route-strip">
+        <canvas id="terrain" class="terrain-canvas"></canvas>
+        <img id="render-result" class="render-result" alt="当前阶段主预览">
+        <div class="route-strip-meta"><span><i class="red"></i>GPX</span><span><i class="blue"></i>水系</span><b id="meta-size">100 mm</b><b id="meta-r">R8</b></div>
+      </div>
+
+      <div class="stage-pipeline" aria-label="两阶段出图流程">
+        <section class="image-stage image-stage-preview" aria-labelledby="preview-stage-title">
+          <header><div><span>第一步</span><b id="preview-stage-title">模型预览</b><small>从三个角度确认地形、轨迹、水系和高度</small></div><div class="phase-meta"><strong id="preview-stage-note">等待生成</strong><em id="preview-count">0 / 3</em></div></header>
+          <div id="preview-gallery" class="stage-image-grid placeholders"></div>
+        </section>
+
+        <div class="stage-connector" aria-hidden="true"><i>↓</i><span>预览满意后制作打印文件</span></div>
+
+        <section class="image-stage image-stage-final" aria-labelledby="final-stage-title">
+          <header><div><span>第二步</span><b id="final-stage-title">打印检查</b><small>检查底座、文字、Logo、装配和打印文件</small></div><div class="phase-meta"><strong id="final-stage-note">等待预览</strong><em id="final-count">0 / 3</em></div></header>
+          <div id="final-gallery" class="stage-image-grid placeholders"></div>
+        </section>
+      </div>
+
+      <div class="preview-truth"><b>A 是“能否继续”的工程检查，B 是“是否可以下载打印”的交付检查。</b> 图位提前展示每个机位的验证目的；出图后点击任意图片可放大核验。</div>
+      <div class="model-meta"><div><small>模型尺寸</small><b>100 mm</b></div><div><small>地形精度</small><b>R8</b></div><div><small>交付契约</small><b>5 + 1</b></div></div>
+    </section>
+
+    <aside class="ops-column" aria-label="队列和交付">
+      <section class="console-card task-center" aria-labelledby="task-center-title">
+        <header><span>任务队列</span><b id="task-center-title">制作进度</b><strong id="queue-global">正在读取</strong></header>
+        <div class="queue-metrics"><div><small>队列任务</small><b id="queue-total">0</b></div><div><small>正在运行</small><b id="queue-running">0</b></div><div><small>等待任务</small><b id="queue-waiting">0</b></div></div>
+        <div id="queue-stage-bars" class="queue-stage-bars"><span>等待队列阶段统计</span></div>
+        <div class="own-task-label"><span>本浏览器任务</span><small>不显示其他客户的路线名称</small></div>
+        <div id="task-cards" class="task-cards"><article class="task-empty"><b>还没有任务</b><span>上传后在这里原位更新。</span></article></div>
+      </section>
+
+      <article id="stage-4" class="console-card output-panel stage-panel stage-4">
+        <header><span>04 输出</span><b>Bambu 5+1</b><em id="output-live">等待仿真</em></header>
+        <ul class="deliverable-list"><li><b>01</b>三色沙盘<span>绿·棕·灰</span></li><li><b>02</b>适配底座<span>灰·棕</span></li><li><b>03</b>徒步轨迹<span>红</span></li><li><b>04</b>完整水网<span>蓝</span></li><li><b>05</b>四件同盘<span>4 对象</span></li><li><b>06</b>Blender<span>.blend</span></li></ul>
+        <div id="coverage" class="coverage"><b>预计交付</b><span>01 等待</span><span>02 等待</span><span>03 等待</span><span>04 等待</span><span>05 等待</span><span>06 等待</span></div>
+      </article>
+
+      <div class="action-bar"><div class="step-actions"><button id="previous" class="secondary" hidden>上一步</button><button id="next" hidden>下一步</button><button id="simulate" class="simulate" disabled>生成模型预览</button><button id="download" disabled hidden>制作打印文件 <span>→</span></button></div></div>
+    </aside>
+  </section>
+
+  <details class="acceptance"><summary>验收方法与通过标准</summary><ol><li>未提交时，阶段 A 与阶段 B 的 N+M 个图位全部存在。</li><li>Blender 仿真完成只更新阶段 A，最终交付完成才更新阶段 B。</li><li>队列只公开任务总数和匿名阶段统计；本浏览器可查看自己的任务详情。</li><li>输出完成后提供 5 个 3MF、1 个 Blender 和完整 ZIP 下载。</li></ol></details>
+</main>
+<dialog id="image-lightbox" class="image-lightbox" aria-labelledby="lightbox-title">
+  <button id="lightbox-close" type="button" aria-label="关闭大图">×</button>
+  <img id="lightbox-image" alt="放大的模型核验图">
+  <div><b id="lightbox-title">模型核验图</b><span id="lightbox-purpose"></span></div>
+</dialog>
+<script src="config.js?v=20260820-4"></script>
+<script src="app.js?v=20260820-15"></script>
+</body>
+</html>

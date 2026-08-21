@@ -17,6 +17,9 @@ import bpy
 FONT = Path("/System/Library/Fonts/Hiragino Sans GB.ttc")
 RAISE_MM = 0.6
 EDGE_INSET_MM = 11.5
+MIN_PRINTABLE_LABEL_HEIGHT_MM = 3.20
+LABEL_SIDE_QUIET_MM = 0.65
+FONT_OUTLINE_OFFSET_MM = 0.20
 LABELS = (
     ("星溪徒步", 32.0, 4.2),
     ("2026.07.12", 31.0, 3.8),
@@ -143,7 +146,7 @@ def create_label(text, target, rotation, max_width, max_height):
     curve.size = 6.0
     curve.extrude = 0.3
     # Slight outline expansion preserves Chinese strokes at a 0.4 mm nozzle.
-    curve.offset = 0.12
+    curve.offset = FONT_OUTLINE_OFFSET_MM
     curve.resolution_u = 8
     curve.font = bpy.data.fonts.load(str(FONT))
     obj = bpy.data.objects.new(f"Label_{text}", curve)
@@ -183,6 +186,8 @@ def create_label(text, target, rotation, max_width, max_height):
         "target_center": [round(target[0], 6), round(target[1], 6)],
         "actual_center": [round(corrected_center[0], 6), round(corrected_center[1], 6)],
         "centering_error_mm": round(math.dist(target, corrected_center), 6),
+        "max_width_mm": round(max_width, 6),
+        "max_height_mm": round(max_height, 6),
     }
 
 
@@ -230,6 +235,20 @@ def main():
         if base.get("Side edge angle deg") is not None
         else math.atan2(terrain_height / 2, terrain_width / 4)
     )
+    visible_ring_width = float(base.get("Visible ring width mm", 0.0))
+    # Keep at least about one stroke-height of quiet space on each side of
+    # the text.  This turns the frame constraint into a typography constraint
+    # instead of letting legacy 4.2 mm labels overfill a narrower border.
+    adaptive_height = None
+    if visible_ring_width > 0:
+        available_height = visible_ring_width - 2 * LABEL_SIDE_QUIET_MM
+        if available_height < MIN_PRINTABLE_LABEL_HEIGHT_MM:
+            raise RuntimeError(
+                f"Visible ring {visible_ring_width:.3f} mm cannot carry printable "
+                f"text: available={available_height:.3f} mm, "
+                f"required={MIN_PRINTABLE_LABEL_HEIGHT_MM:.3f} mm"
+            )
+        adaptive_height = min(3.30, available_height)
     label_geometry = (
         (labels_spec[0][0], 0.0, (0.0, 1.0), labels_spec[0][1], labels_spec[0][2]),
         (
@@ -257,7 +276,13 @@ def main():
             if base.get("Construction method") == "true_parallel_polygon_offset"
             else edge_band_center(base, terrain, (center_x, center_y), rotation, outward)
         )
-        created.append(create_label(text, target, rotation, width, height))
+        created.append(create_label(
+            text,
+            target,
+            rotation,
+            width,
+            min(height, adaptive_height) if adaptive_height else height,
+        ))
     labels = [item[0] for item in created]
     placements = [item[1] for item in created]
     if base.get("Construction method") == "true_parallel_polygon_offset":
@@ -310,8 +335,12 @@ def main():
         "side_edge_angle_deg": math.degrees(side_angle),
         "font": str(FONT),
         "font_format": "Hiragino Sans GB TTC",
-        "outline_offset_mm_before_scaling": 0.12,
+        "outline_offset_mm_before_scaling": FONT_OUTLINE_OFFSET_MM,
+        "minimum_printable_label_height_mm": MIN_PRINTABLE_LABEL_HEIGHT_MM,
+        "label_side_quiet_mm": LABEL_SIDE_QUIET_MM,
         "placement_method": "base_mesh_support_edge_and_final_mesh_bounds",
+        "visible_ring_width_mm": visible_ring_width,
+        "adaptive_label_height_mm": adaptive_height,
         "edge_inset_mm": EDGE_INSET_MM,
         "placements": placements,
         "bounds": world_bounds(title),

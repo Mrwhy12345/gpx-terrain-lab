@@ -137,19 +137,27 @@ def main():
         projectionObj=projection,
     )
     bpy.data.objects.remove(projection, do_unlink=True)
+    conversion_returned_none = result is None
+    recovery_bottom = None
     if result is None:
-        raise RuntimeError("TrailPrint3D single-color trail conversion failed")
-    trail_insert, groove_cutter = result
-    if groove_cutter is None:
-        raise RuntimeError("TrailPrint3D did not return a groove cutter")
+        # Regional routes can collapse during TrailPrint's voxel/boolean step
+        # even though the preserved GPX-following spine is valid. Recover from
+        # that spine and derive the slot from the exact recovered insert.
+        trail_insert = continuity_core.copy()
+        trail_insert.data = continuity_core.data.copy()
+        bpy.context.scene.collection.objects.link(trail_insert)
+        groove_cutter = None
+    else:
+        trail_insert, groove_cutter = result
+        if groove_cutter is None:
+            raise RuntimeError("TrailPrint3D did not return a groove cutter")
 
     # TrailPrint3D can return a nominal object whose projected shell has
     # collapsed to one vertex on some valid single-segment GPX routes.  Treat
     # that as a failed conversion and recover from the preserved route-following
     # structural spine.  This follows the GPX exactly and never adds a straight
     # cross-terrain bridge; the TrailPrint3D groove cutter remains authoritative.
-    recovered_from_core = len(trail_insert.data.vertices) < 3 or len(trail_insert.data.polygons) == 0
-    recovery_bottom = None
+    recovered_from_core = conversion_returned_none or len(trail_insert.data.vertices) < 3 or len(trail_insert.data.polygons) == 0
     if recovered_from_core:
         bpy.data.objects.remove(trail_insert, do_unlink=True)
         trail_insert = continuity_core.copy()
@@ -163,7 +171,8 @@ def main():
         # The recovered insert is deeper than TrailPrint3D's collapsed shell;
         # derive a new groove from the final printable geometry and recut the
         # terrain so print part and receiving slot remain exactly homologous.
-        bpy.data.objects.remove(groove_cutter, do_unlink=True)
+        if groove_cutter is not None:
+            bpy.data.objects.remove(groove_cutter, do_unlink=True)
         groove_cutter = expanded_copy(trail_insert, "Recovered_Trail_Groove_Cutter", side_tolerance)
         boolean_operation(terrain, groove_cutter, "DIFFERENCE")
 
@@ -227,6 +236,7 @@ def main():
         },
         "trailprint_shell_recovery": {
             "used": recovered_from_core,
+            "conversion_returned_none": conversion_returned_none,
             "method": "preserved_route_following_structural_spine",
             "straight_cross_terrain_bridges": 0,
             "common_bottom_z": recovery_bottom[0] if recovery_bottom else None,

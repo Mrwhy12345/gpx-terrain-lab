@@ -7,6 +7,7 @@ __pycache__/
 result.json
 .pnpm-store/
 08_Jobs/
+09_WebApp/runtime/
 
 # Private route and source data
 02_GPX/

@@ -44,7 +44,11 @@ def main():
     parser.add_argument("job_dir", type=Path)
     args = parser.parse_args()
     job_dir = args.job_dir.resolve(); job_path = job_dir / "job.json"
-    job = json.loads(job_path.read_text(encoding="utf-8")); route = job["route"]; engineering = job.get("engineering", {})
+    job = json.loads(job_path.read_text(encoding="utf-8"))
+    if "route_profile" not in job:
+        from configure_route_scene import configure
+        configure(job_dir); job=json.loads(job_path.read_text(encoding="utf-8"))
+    route = job["route"]; engineering = job.get("engineering", {})
     gpx = job_dir / route["gpx"]; work = job_dir / "work"; review = job_dir / "review"; final = job_dir / "final"; process = job_dir / "process"
     for directory in (work, review, final, process): directory.mkdir(parents=True, exist_ok=True)
     # Web jobs already carry browser-derived facts. Materialize the standard facts file for label generation.
@@ -60,15 +64,23 @@ def main():
     trail = work / "trail_insert.blend"
     stages.append(run("02_trail", blender(source, "build_trail_insert_and_groove.py", trail, review/"trail_insert.json", job_path), [trail, review/"trail_insert.json"], process))
     endpoint = work / "trail_endpoints.blend"
-    stages.append(run("03_endpoints", blender(trail, "add_trail_endpoint_relief.py", gpx, endpoint, review/"trail_endpoints.json"), [endpoint, review/"trail_endpoints.json"], process))
+    model_gpx=job_dir/route.get("model_gpx",route["gpx"])
+    stages.append(run("03_endpoints", blender(trail, "add_trail_endpoint_relief.py", model_gpx, endpoint, review/"trail_endpoints.json"), [endpoint, review/"trail_endpoints.json"], process))
     unified_trail = work / "trail_one_piece.blend"
     stages.append(run("03b_trail_unify", blender(endpoint, "unify_trail_hidden_bridges.py", unified_trail, review/"trail_one_piece.json"), [unified_trail, review/"trail_one_piece.json"], process))
+    bands_source = unified_trail
+    if job.get("route_profile", {}).get("mode") == "REGIONAL_OVERVIEW":
+        selected_water = work / "water_selected"
+        stages.append(run("03c_regional_water", [sys.executable, str(TOOLS/"probe_regional_route_water.py"), str(job_dir)], [selected_water/"water_lines.geojson", selected_water/"water_polygons.geojson", review/"regional_water.json"], process, timeout=1200))
+        regional_water_scene = work / "regional_water_source.blend"
+        stages.append(run("03d_regional_water_geometry", blender(unified_trail, "build_blender_water_geometry.py", selected_water/"water_lines.geojson", selected_water/"water_polygons.geojson", regional_water_scene, review/"regional_water_geometry.json"), [regional_water_scene, review/"regional_water_geometry.json"], process))
+        bands_source = regional_water_scene
     bands = work / "terrain_three_band.blend"; bands_report = review / "terrain_three_band.json"
-    stages.append(run("04_bands", blender(unified_trail, "build_three_band_print_model.py", bands, bands_report), [bands, bands_report], process))
+    stages.append(run("04_bands", blender(bands_source, "build_three_band_print_model.py", bands, bands_report), [bands, bands_report], process))
     parts = work / "parts"; water_scene = work / "terrain_water_grooved.blend"
     stages.append(run("05_water", blender(bands, "build_water_inserts_and_grooves.py", water_scene, parts, review/"water_inserts.json"), [water_scene, parts/"05_Water_Blue_SeparatePrint.stl"], process))
     base = work / "base.blend"
-    stages.append(run("06_base", blender(water_scene, "rebuild_base_true_polygon_offset.py", base, review/"base.json"), [base, review/"base.json"], process))
+    stages.append(run("06_base", blender(water_scene, "rebuild_base_for_frame_glue_fit.py", base, review/"base.json"), [base, review/"base.json"], process))
     labels = work / "labels.blend"; labels_stl = work / "labels_only.stl"
     stages.append(run("07_labels", blender(base, "update_three_edge_labels.py", labels, review/"labels.json", labels_stl, job_path), [labels, labels_stl], process))
     logo_svg = work / "route_logo.svg"
