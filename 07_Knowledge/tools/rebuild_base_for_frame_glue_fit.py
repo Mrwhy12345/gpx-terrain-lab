@@ -12,12 +12,15 @@ import bmesh
 import bpy
 from mathutils import Vector
 
-FRAME_INNER = [
-    Vector((-27.13545, -50.0)), Vector((27.13545, -50.0)),
-    Vector((57.270935, 0.0)), Vector((27.13545, 50.0)),
-    Vector((-27.13545, 50.0)), Vector((-57.270935, 0.0)),
-]
-CLEARANCE = 0.30
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from medal_frame_spec import (
+    FRAME_CLEARANCE_MM_PER_EDGE,
+    FRAME_INNER_VERTICES_MM,
+    SPEC_VERSION,
+)
+
+FRAME_INNER = [Vector(point) for point in FRAME_INNER_VERTICES_MM]
+CLEARANCE = FRAME_CLEARANCE_MM_PER_EDGE
 BASE_THICKNESS = 8.0
 RECESS_CLEARANCE = 0.30
 RECESS_DEPTH = 0.8
@@ -171,6 +174,7 @@ def main():
     base["Construction method"] = "true_parallel_polygon_offset"
     base["Frame fit method"] = "frame_inner_true_parallel_offset"
     base["Frame clearance mm"] = CLEARANCE
+    base["Medal frame spec version"] = SPEC_VERSION
     base["Slot clearance mm"] = RECESS_CLEARANCE
     base["Visible ring width mm"] = visible_ring_width
     base["Outer contour vertices"] = json.dumps([[p.x, p.y] for p in outer])
@@ -188,6 +192,7 @@ def main():
     ]
     report = {
         "method": "terrain_recess_true_parallel_outer_inscribed_in_measured_frame",
+        "medal_frame_spec_version": SPEC_VERSION,
         "frame_inner_vertices": [[p.x, p.y] for p in FRAME_INNER],
         "clearance_mm_per_edge": CLEARANCE,
         "base_outer_vertices": [[p.x, p.y] for p in outer],

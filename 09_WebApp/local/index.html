@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="placeholders.css">
   <link rel="stylesheet" href="flow.css">
   <link rel="stylesheet" href="single-page.css?v=20260820-2">
-  <link rel="stylesheet" href="dashboard.css?v=20260820-10">
+  <link rel="stylesheet" href="dashboard.css?v=20260825-3">
 </head>
 <body>
 <main class="app-shell">
@@ -21,7 +21,7 @@
       <button class="stage-tab" data-stage="3">03 仿真</button>
       <button class="stage-tab" data-stage="4">04 交付</button>
     </nav>
-    <div class="local-pill"><i></i>制作服务在线</div>
+    <div class="local-pill" id="service-health"><i></i><span>正在检查制作服务</span></div>
   </header>
 
   <section id="task-receipt" class="task-receipt global-task" role="status" aria-live="polite">
@@ -59,6 +59,15 @@
           <label class="toggle-row"><span><b>城市</b><small>T 1.00</small></span><input id="city" type="checkbox"><i></i></label>
         </div>
         <div class="dual-live"><span><b id="creative-live">上传后采用文件名</b></span><span><b id="elements-live">水系开启 · 森林关闭 · 城市关闭</b></span></div>
+        <div id="creative-workflow" class="creative-workflow" hidden>
+          <div class="creative-step-head"><b id="creative-step-label">创意确认</b><small id="creative-help">工程仿真后逐项选择</small></div>
+          <div id="title-options" class="choice-grid title-options"></div>
+          <div id="logo-options" class="choice-grid logo-options" hidden></div>
+          <button id="creative-proof" class="creative-proof" type="button" hidden>
+            <img id="creative-proof-image" alt="底面同源校样">
+            <span><b>底面同源校样</b><small>标题、日期、里程、Logo 与奖牌框尺寸同源</small></span>
+          </button>
+        </div>
       </section>
 
       <div class="baseline-row"><span id="baseline" class="pass">✓ 已采用推荐参数</span><small id="step-hint">上传 GPX 后即可生成预览。</small></div>
@@ -75,7 +84,7 @@
 
       <div class="stage-pipeline" aria-label="两阶段出图流程">
         <section class="image-stage image-stage-preview" aria-labelledby="preview-stage-title">
-          <header><div><span>第一步</span><b id="preview-stage-title">模型预览</b><small>从三个角度确认地形、轨迹、水系和高度</small></div><div class="phase-meta"><strong id="preview-stage-note">等待生成</strong><em id="preview-count">0 / 3</em></div></header>
+          <header><div><span>第一步</span><b id="preview-stage-title">模型预览</b><small>三机位核对工程，第 4 视角确认底面 Logo</small></div><div class="phase-meta"><strong id="preview-stage-note">等待生成</strong><em id="preview-count">0 / 4</em></div></header>
           <div id="preview-gallery" class="stage-image-grid placeholders"></div>
         </section>
 
@@ -102,7 +111,7 @@
 
       <article id="stage-4" class="console-card output-panel stage-panel stage-4">
         <header><span>04 输出</span><b>Bambu 5+1</b><em id="output-live">等待仿真</em></header>
-        <ul class="deliverable-list"><li><b>01</b>三色沙盘<span>绿·棕·灰</span></li><li><b>02</b>适配底座<span>灰·棕</span></li><li><b>03</b>徒步轨迹<span>红</span></li><li><b>04</b>完整水网<span>蓝</span></li><li><b>05</b>四件同盘<span>4 对象</span></li><li><b>06</b>Blender<span>.blend</span></li></ul>
+        <ul class="deliverable-list"><li><b>01</b><strong id="terrain-color-title">三色沙盘</strong><span id="terrain-color-list">绿·棕·灰</span></li><li><b>02</b>适配底座<span>灰·棕</span></li><li><b>03</b>徒步轨迹<span>红</span></li><li><b>04</b>完整水网<span>蓝</span></li><li><b>05</b>四件同盘<span>4 对象</span></li><li><b>06</b>Blender<span>.blend</span></li></ul>
         <div id="coverage" class="coverage"><b>预计交付</b><span>01 等待</span><span>02 等待</span><span>03 等待</span><span>04 等待</span><span>05 等待</span><span>06 等待</span></div>
       </article>
 
@@ -118,6 +127,6 @@
   <div><b id="lightbox-title">模型核验图</b><span id="lightbox-purpose"></span></div>
 </dialog>
 <script src="config.js?v=20260820-4"></script>
-<script src="app.js?v=20260820-15"></script>
+<script src="app.js?v=20260825-2"></script>
 </body>
 </html>

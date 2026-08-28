@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Bambu one-plate hierarchy: four top-level objects, seven material parts."""
+"""Validate Bambu one-plate hierarchy: four install objects, optional city colour."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 CORE = "{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}"
-EXPECTED = {"沙盘": 3, "底座": 2, "轨迹": 1, "水系": 1}
+EXPECTED_FIXED = {"底座": 2, "轨迹": 1, "水系": 1}
 EXPECTED_PARENT_EXTRUDER = {"轨迹": "5", "水系": "4"}
 
 
@@ -25,18 +25,24 @@ def main():
     records = []
     for obj in objects:
         name = next((m.get("value") for m in obj.findall("metadata") if m.get("key") == "name"), "")
-        label = next((label for label in EXPECTED if name.endswith("_" + label)), None)
+        label = next((label for label in ("沙盘", *EXPECTED_FIXED) if name.endswith("_" + label)), None)
         extruder = next((m.get("value") for m in obj.findall("metadata") if m.get("key") == "extruder"), "")
         parts = obj.findall("part")
-        records.append({"id": int(obj.get("id")), "name": name, "role": label, "parent_extruder": extruder, "material_parts": len(parts)})
+        part_names = [next((m.get("value") for m in p.findall("metadata") if m.get("key") == "name"), "") for p in parts]
+        records.append({"id": int(obj.get("id")), "name": name, "role": label, "parent_extruder": extruder, "material_parts": len(parts), "part_names": part_names})
     if len(build_items) != 4 or len(objects) != 4:
         raise RuntimeError(f"Expected 4 top-level objects, build={len(build_items)}, settings={len(objects)}")
-    if {item["role"]: item["material_parts"] for item in records} != EXPECTED:
+    hierarchy = {item["role"]: item["material_parts"] for item in records}
+    terrain = next(item for item in records if item["role"] == "沙盘")
+    has_city = any("City_Terracotta" in name for name in terrain["part_names"])
+    expected = {"沙盘": 4 if has_city else 3, **EXPECTED_FIXED}
+    if hierarchy != expected:
         raise RuntimeError(f"Unexpected object hierarchy: {records}")
     actual_extruders = {item["role"]: item["parent_extruder"] for item in records if item["role"] in EXPECTED_PARENT_EXTRUDER}
     if actual_extruders != EXPECTED_PARENT_EXTRUDER:
         raise RuntimeError(f"Unexpected trail/water parent extruders: {actual_extruders}")
-    payload = {"status":"PASS","top_level_objects":4,"material_parts":7,"objects":records}
+    material_parts = sum(item["material_parts"] for item in records)
+    payload = {"status":"PASS","top_level_objects":4,"material_parts":material_parts,"city_terracotta":has_city,"objects":records}
     if report:
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

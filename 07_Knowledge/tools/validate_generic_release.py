@@ -10,8 +10,18 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from medal_frame_spec import (
+    BASE_DIMENSION_TOLERANCE_MM,
+    FRAME_CLEARANCE_MM_PER_EDGE,
+    FRAME_INNER_BOUNDS_MM,
+    MIN_VISIBLE_RING_WIDTH_MM,
+    SPEC_VERSION,
+    TARGET_DESIGN_OUTER_BOUNDS_MM,
+    TARGET_PRINTED_MESH_OUTER_BOUNDS_MM,
+    TARGET_VISIBLE_RING_WIDTH_MM,
+)
+
 CORE="{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}"
-FRAME_INNER_BOUNDS_MM=(114.54187,100.0)
 
 
 def mesh_connected_components(project):
@@ -113,6 +123,12 @@ def main():
                     f"Base cannot fit medal frame: {width:.4f}x{height:.4f} mm > "
                     f"{FRAME_INNER_BOUNDS_MM[0]:.4f}x{FRAME_INNER_BOUNDS_MM[1]:.4f} mm: {project.name}"
                 )
+            for actual, target in zip((width, height), TARGET_PRINTED_MESH_OUTER_BOUNDS_MM):
+                if abs(actual-target)>BASE_DIMENSION_TOLERANCE_MM:
+                    raise RuntimeError(
+                        f"Printed base mesh dimension drift: {width:.4f}x{height:.4f} mm vs "
+                        f"{TARGET_PRINTED_MESH_OUTER_BOUNDS_MM}: {project.name}"
+                    )
             checks.append(f"PASS {project.name}: frame_opening_bounds={width:.4f}x{height:.4f}mm")
         if project.name.startswith("01_"):
             component_sizes=mesh_component_vertex_counts(project)
@@ -145,11 +161,18 @@ def main():
     bounds=base_report.get("base_outer_bounds_mm",[])
     if len(bounds)!=2 or bounds[0]>FRAME_INNER_BOUNDS_MM[0] or bounds[1]>FRAME_INNER_BOUNDS_MM[1]:
         raise RuntimeError(f"Medal-frame base target exceeds opening: {bounds}")
-    if abs(float(base_report.get("clearance_mm_per_edge",-1))-0.30)>1e-6:
+    if base_report.get("medal_frame_spec_version") != SPEC_VERSION:
+        raise RuntimeError(f"Medal-frame spec version drift: {base_report.get('medal_frame_spec_version')}")
+    if abs(float(base_report.get("clearance_mm_per_edge",-1))-FRAME_CLEARANCE_MM_PER_EDGE)>1e-6:
         raise RuntimeError(f"Medal-frame clearance drift: {base_report.get('clearance_mm_per_edge')}")
+    for actual, target in zip(bounds, TARGET_DESIGN_OUTER_BOUNDS_MM):
+        if abs(float(actual)-target)>BASE_DIMENSION_TOLERANCE_MM:
+            raise RuntimeError(f"Medal-frame base dimension drift: {bounds} vs {TARGET_DESIGN_OUTER_BOUNDS_MM}")
     ring_width=float(base_report.get("visible_ring_width_mm",0))
-    if base_report.get("ring_parallelism")!="exact_by_shared_parallel_offset" or ring_width<4.0:
+    if base_report.get("ring_parallelism")!="exact_by_shared_parallel_offset" or ring_width<MIN_VISIBLE_RING_WIDTH_MM:
         raise RuntimeError(f"Base ring parallelism/width invalid: {ring_width}")
+    if abs(ring_width-TARGET_VISIBLE_RING_WIDTH_MM)>BASE_DIMENSION_TOLERANCE_MM:
+        raise RuntimeError(f"Base visible-ring width drift: {ring_width} vs {TARGET_VISIBLE_RING_WIDTH_MM}")
     checks.append(f"PASS medal_frame_fit: parallel equal-width ring={ring_width:.3f}mm inside measured frame")
     labels_report_path=report.parent/"labels.json"
     if not labels_report_path.exists():
@@ -164,6 +187,93 @@ def main():
     if float(labels_report.get("outline_offset_mm_before_scaling",0))<0.20:
         raise RuntimeError("Chinese label outline is not reinforced for a 0.4mm nozzle")
     checks.append(f"PASS printable_labels: height={label_height:.3f}mm, reinforced Chinese outlines")
+    trail_shape_path=report.parent/"linear_trail_quality.json"
+    if not trail_shape_path.exists():
+        raise RuntimeError(f"Missing final trail shape audit: {trail_shape_path}")
+    trail_shape=json.loads(trail_shape_path.read_text(encoding="utf-8"))
+    if trail_shape.get("status")!="PASS":
+        raise RuntimeError(
+            f"Final trail is not a narrow GPX-following feature: "
+            f"area ratio={trail_shape.get('footprint_area_ratio')}"
+        )
+    checks.append(
+        f"PASS final_trail_shape: projected_area_ratio={trail_shape.get('footprint_area_ratio')}"
+    )
+    job_path=final.parent/"job.json"
+    if not job_path.exists():
+        raise RuntimeError(f"Missing job contract: {job_path}")
+    job=json.loads(job_path.read_text(encoding="utf-8"))
+    terrain_report_path=report.parent/"terrain_three_band.json"
+    if not terrain_report_path.exists():
+        raise RuntimeError(f"Missing terrain surface-fidelity report: {terrain_report_path}")
+    terrain_report=json.loads(terrain_report_path.read_text(encoding="utf-8"))
+    fidelity=terrain_report.get("surface_fidelity",{})
+    if fidelity.get("policy") != "trailprint_source_surface_direct":
+        raise RuntimeError("Terrain does not use TrailPrint3D source-surface-direct policy")
+    if not fidelity.get("source_unchanged_before_band_split"):
+        raise RuntimeError("TrailPrint3D source mesh changed before band split")
+    if abs(float(fidelity.get("vertical_factor",-1.0))-1.0) > 1e-9:
+        raise RuntimeError("Source-surface-direct policy forbids Z rescaling")
+    operations=fidelity.get("operations",{})
+    forbidden=[
+        name for name in (
+            "surface_smoothing", "surface_remesh", "surface_decimation", "source_z_rescale"
+        ) if operations.get(name) is not False
+    ]
+    if forbidden:
+        raise RuntimeError(f"Forbidden terrain surface operations enabled: {forbidden}")
+    if fidelity.get("band_method") != "z_slab_boolean_intersection_only":
+        raise RuntimeError(f"Unexpected terrain band method: {fidelity.get('band_method')}")
+    objects=fidelity.get("objects",{})
+    if not objects:
+        raise RuntimeError("Terrain source-surface audit contains no objects")
+    for name,audit in objects.items():
+        if not audit.get("unchanged"):
+            raise RuntimeError(f"TrailPrint3D source mesh changed for {name}")
+        if audit.get("source_fingerprint") != audit.get("pre_band_fingerprint"):
+            raise RuntimeError(f"TrailPrint3D source fingerprint mismatch for {name}")
+    checks.append(f"PASS terrain_surface: TrailPrint3D source mesh preserved objects={len(objects)}")
+    water_report_path=report.parent/"water_inserts.json"
+    if not water_report_path.exists():
+        raise RuntimeError(f"Missing water installation report: {water_report_path}")
+    water_report=json.loads(water_report_path.read_text(encoding="utf-8"))
+    connectivity=water_report.get("connectivity",{})
+    if (
+        connectivity.get("policy") != "no_artificial_cross_terrain_connectors"
+        or connectivity.get("artificial_connector_count") != 0
+        or connectivity.get("joined_local_gaps_mm")
+    ):
+        raise RuntimeError(f"Water contains forbidden artificial installation bridges: {connectivity}")
+    component_count=int(connectivity.get("components_after",0))
+    maximum=int(connectivity.get("maximum_install_components",5))
+    if not 1 <= component_count <= maximum:
+        raise RuntimeError(f"Water component count outside installation policy: {component_count}/{maximum}")
+    checks.append(f"PASS water_installation: source-faithful components={component_count}, artificial_connectors=0")
+    city_enabled=bool(
+        job.get("engineering",{}).get("trailprint_elements",{}).get("city_boundaries",False)
+    )
+    if city_enabled:
+        city_restore=terrain_report.get("city_restore",{})
+        city_input=int(city_restore.get("input_count",-1))
+        city_merged=int(city_restore.get("merged_count",-2))
+        city_unhandled=city_restore.get("unhandled",["missing-accounting"])
+        expected_method="preserve_city_as_integrated_terracotta_terrain_part"
+        city_output=int(city_restore.get("output_count",-1))
+        if (
+            city_input < 0
+            or city_merged != city_input
+            or city_output != (1 if city_input else 0)
+            or city_unhandled
+            or city_restore.get("method") != expected_method
+        ):
+            raise RuntimeError(
+                "TrailPrint3D CITY cut-outs were not fully restored to terrain: "
+                f"input={city_input}, merged={city_merged}, output={city_output}, unhandled={city_unhandled}, "
+                f"method={city_restore.get('method')}"
+            )
+        checks.append(
+            f"PASS city_terrain_accounting: input={city_input}, terracotta_parts={city_output}, unhandled=0"
+        )
     payload = {"status":"PASS","contract":"5x3MF+1xBlend","zip_test":"PASS","build_and_z_checks":checks}
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

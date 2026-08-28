@@ -6,7 +6,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 from async_jobs import (BASE_ALGORITHM, BLENDER, FONT_ALGORITHM, JOBS_ROOT,
-    PIPELINE_VERSION, QUEUE, create_preview_job, status_path, update_status)
+    PIPELINE_VERSION, QUEUE, choose_logo, choose_title, confirm_creative,
+    create_preview_job, load_creative, preview_payload, status_path, update_status)
+from async_jobs import render_creative_bottom_preview
 
 WEB_ROOT=Path(__file__).resolve().parent
 SERVER_ROLE=os.getenv("GPX_SERVER_ROLE","combined")
@@ -39,11 +41,15 @@ def queue_snapshot(job_id=None,current=None):
     if job_id and current:
         ahead=sum(1 for item in pending if item.get("job_id")!=job_id and (item.get("state")=="RUNNING" or pending.index(item)<next((i for i,x in enumerate(pending) if x.get("job_id")==job_id),len(pending))))
         result.update({"ahead":ahead,"position":0 if current.get("state")=="RUNNING" else ahead+1})
-        preview_steps=[("route_profile","A1 GPX 分析"),("trailprint3d","A2 地形与水系"),("blender_preview","A3 三机位仿真"),("preview","A 工程确认")]
-        final_steps=[("preview","A 工程仿真"),("production","B1 最终制造"),("packaging","B2 Bambu QA"),("complete","B 交付完成")]
+        preview_steps=[("route_profile","A1 GPX 分析"),("trailprint3d","A2 地形与水系"),("blender_preview","A3 三机位仿真"),("creative","A4 创意确认")]
+        final_steps=[("creative","A4 创意确认"),("production","B1 最终制造"),("packaging","B2 Bambu QA"),("complete","B 交付完成")]
         steps=final_steps if current.get("request")=="final" else preview_steps
         order=[key for key,_ in steps]; active=current.get("stage"); active_index=order.index(active) if active in order else -1
-        result["steps"]=[{"key":key,"label":label,"state":"done" if i<active_index or current.get("state") in {"PREVIEW_READY","FINAL_READY"} else "active" if i==active_index else "pending"} for i,(key,label) in enumerate(steps)]
+        result["steps"]=[]
+        for i,(key,label) in enumerate(steps):
+            done=i<active_index or current.get("state")=="FINAL_READY"
+            active_step=i==active_index and not done
+            result["steps"].append({"key":key,"label":label,"state":"done" if done else "active" if active_step else "pending"})
     return result
 
 class Handler(SimpleHTTPRequestHandler):
@@ -112,6 +118,13 @@ class Handler(SimpleHTTPRequestHandler):
             target=JOBS_ROOT/match.group(1)/"review"/match.group(2)
             if target.is_file(): self.send_file(target); return
             self.send_error(404); return
+        match=re.fullmatch(r"/generated/(WEB_[0-9A-Za-z\u4e00-\u9fff_-]+)/creative/(logo_[A-D]\.svg|bottom_proof\.svg|bottom_render\.png)",path)
+        if match:
+            client_id=(query.get("client_id") or [""])[0]
+            if not owns_job(match.group(1),client_id): self.send_error(404); return
+            target=JOBS_ROOT/match.group(1)/"work/creative"/match.group(2)
+            if target.is_file(): self.send_file(target); return
+            self.send_error(404); return
         match=re.fullmatch(r"/downloads/(WEB_[0-9A-Za-z\u4e00-\u9fff_-]+)/([^/]+)",path)
         if match and valid_job_id(match.group(1)):
             client_id=(query.get("client_id") or [""])[0]
@@ -122,8 +135,12 @@ class Handler(SimpleHTTPRequestHandler):
         if SERVER_ROLE=="backend": self.send_error(404)
         else: super().do_GET()
     def do_POST(self):
-        route=urlsplit(self.path).path
-        if route not in {"/api/generate-preview","/api/finalize-job"}: self.send_error(404); return
+        # Browser requests percent-encode Chinese job names.  GET already
+        # decodes its route before matching; POST must do the same or creative
+        # actions for Chinese-named jobs fall through to the generic 404.
+        route=unquote(urlsplit(self.path).path)
+        creative_match=re.fullmatch(r"/api/jobs/(WEB_[0-9A-Za-z\u4e00-\u9fff_-]+)/creative/(title|logo|confirm)",route)
+        if route not in {"/api/generate-preview","/api/finalize-job"} and not creative_match: self.send_error(404); return
         try:
             payload=self.read_json()
             if route=="/api/generate-preview":
@@ -133,6 +150,26 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     current=json.loads(status_path(JOBS_ROOT/job_id).read_text(encoding="utf-8"))
                     self.send_json(200,{"ok":True,"deduplicated":True,"job_id":job_id,"state":current.get("state"),"status_url":f"/api/jobs/{job_id}"}); return
+            elif creative_match:
+                job_id=creative_match.group(1); action=creative_match.group(2); client_id=payload.get("client_id",""); job_dir=JOBS_ROOT/job_id
+                if not owns_job(job_id,client_id): self.send_json(404,{"ok":False,"error":"任务不存在或不属于当前匿名客户"}); return
+                current_path=status_path(job_dir); current=json.loads(current_path.read_text(encoding="utf-8")) if current_path.exists() else {}
+                if current.get("state") not in {"PREVIEW_READY"}:
+                    self.send_json(409,{"ok":False,"error":"工程仿真尚未完成，暂不能确认创意方案"}); return
+                if action=="title":
+                    creative=choose_title(job_dir,payload.get("candidate_id"),payload.get("custom_title"),payload.get("display_date"))
+                    message="标题已选择，请选择与标题关联的 Logo"
+                elif action=="logo":
+                    creative=choose_logo(job_dir,payload.get("candidate_id",""),payload.get("display_date"))
+                    creative=render_creative_bottom_preview(job_dir)
+                    message="Logo 已选择，请核对 Blender 底部视图"
+                else:
+                    creative=confirm_creative(job_dir)
+                    message="创意方案已确认，可以生成最终 5+1"
+                route_profile=(current.get("result") or {}).get("route_profile") or {}
+                result=preview_payload(job_id,route_profile)
+                update_status(job_dir,"PREVIEW_READY","creative",100,message,request="preview",creative=creative,result=result)
+                self.send_json(200,{"ok":True,"job_id":job_id,"creative":creative,"result":result}); return
             else:
                 job_id=payload.get("job_id",""); client_id=payload.get("client_id",""); job_dir=JOBS_ROOT/job_id
                 if not owns_job(job_id,client_id): self.send_json(404,{"ok":False,"error":"任务不存在或不属于当前匿名客户"}); return
@@ -140,9 +177,14 @@ class Handler(SimpleHTTPRequestHandler):
                 if current.get("state")=="FINAL_READY": self.send_json(200,{"ok":True,**current}); return
                 if current.get("request")=="final" and current.get("state") in {"QUEUED","RUNNING"}:
                     self.send_json(202,{"ok":True,"job_id":job_id,"state":current.get("state","QUEUED"),"status_url":f"/api/jobs/{job_id}"}); return
+                creative=load_creative(job_dir)
+                if not creative or not creative.get("confirmed"):
+                    self.send_json(409,{"ok":False,"error":"请先完成标题、Logo 和底面校样确认，再生成最终 5+1"}); return
                 update_status(job_dir,"QUEUED","final",1,"最终 5+1 已进入 Mac mini 队列",request="final")
                 QUEUE.submit(job_id,"final")
             self.send_json(202,{"ok":True,"job_id":job_id,"state":"QUEUED","status_url":f"/api/jobs/{job_id}"})
+        except (ValueError,KeyError,json.JSONDecodeError) as exc:
+            self.send_json(400,{"ok":False,"error":str(exc)})
         except Exception as exc:
             traceback.print_exc(); self.send_json(500,{"ok":False,"error":str(exc)})
 

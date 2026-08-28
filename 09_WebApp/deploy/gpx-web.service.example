@@ -1,0 +1,16 @@
+[Unit]
+Description=GPX Terrain Lab Web frontend and API gateway
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/webapp/apps/gpx-terrain-lab/current/09_WebApp/local
+Environment=GPX_FRONTEND_HOST=127.0.0.1
+Environment=GPX_FRONTEND_PORT=4173
+Environment=GPX_UPSTREAM_URL=http://127.0.0.1:4174
+ExecStart=/usr/bin/python3 frontend_server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

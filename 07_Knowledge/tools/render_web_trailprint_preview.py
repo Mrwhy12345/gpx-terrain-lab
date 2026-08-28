@@ -6,8 +6,15 @@ import bpy
 from mathutils import Vector
 
 args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
-if len(args)!=3: raise SystemExit("Expected OUTPUT.blend REPORT.json PREVIEW.png")
-output,report_path,preview=map(Path,args)
+if len(args)==4:
+    source,output,report_path,preview=map(Path,args)
+    # Opening the source after Blender has completed headless initialization avoids
+    # a macOS Metal startup crash seen when the .blend is passed on the CLI.
+    bpy.ops.wm.open_mainfile(filepath=str(source.resolve()))
+elif len(args)==3:
+    output,report_path,preview=map(Path,args)
+else:
+    raise SystemExit("Expected [SOURCE.blend] OUTPUT.blend REPORT.json PREVIEW.png")
 
 def points(obj):
     if obj.type=="MESH": return [obj.matrix_world@v.co for v in obj.data.vertices]
