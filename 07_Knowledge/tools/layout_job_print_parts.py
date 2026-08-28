@@ -49,10 +49,12 @@ def main():
         "06_Trail_Red.stl": "10_Trail_Red_SeparatePrint.stl",
         "07_Water_Blue.stl": "05_Water_Blue_SeparatePrint.stl",
     }
+    if (args.source / "04_Terrain_City_Terracotta_Grooved.stl").is_file():
+        mapping["08_Terrain_City_Terracotta.stl"] = "04_Terrain_City_Terracotta_Grooved.stl"
     for destination, source in mapping.items():
         src = args.source / source
         dst = args.individual / destination
-        if destination.startswith(("01_", "02_", "03_")):
+        if destination.startswith(("01_", "02_", "03_", "08_")):
             transform(
                 src, dst,
                 (-args.terrain_center_x * args.xy_scale,
@@ -72,6 +74,8 @@ def main():
         "06_Trail_Red.stl": (-65, -48, 0),
         "07_Water_Blue.stl": (55, -48, 0),
     }
+    if "08_Terrain_City_Terracotta.stl" in mapping:
+        offsets["08_Terrain_City_Terracotta.stl"] = (65, 60, 0)
     for name, offset in offsets.items():
         transform(args.individual / name, args.plate / name, offset)
 

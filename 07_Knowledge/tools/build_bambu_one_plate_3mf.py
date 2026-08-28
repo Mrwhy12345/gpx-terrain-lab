@@ -72,12 +72,18 @@ def write_object_model(destination: Path, parts):
     ET.ElementTree(model).write(destination, encoding="utf-8", xml_declaration=True)
 
 
-GROUPS = (
-    ("沙盘", (1, 2, 3)),
-    ("底座", (4, 5)),
-    ("轨迹", (6,)),
-    ("水系", (7,)),
-)
+def groups_for(parts):
+    ids_by_name = {path.name: object_id for object_id, path, _extruder in parts}
+    terrain = tuple(ids_by_name[name] for name in (
+        "01_Terrain_Low_Green.stl", "02_Terrain_Middle_Brown.stl",
+        "03_Terrain_High_Gray.stl", "08_Terrain_City_Terracotta.stl",
+    ) if name in ids_by_name)
+    return (
+        ("沙盘", terrain),
+        ("底座", (ids_by_name["04_Base_Gray.stl"], ids_by_name["05_Base_Labels_Logo_Brown.stl"])),
+        ("轨迹", (ids_by_name["06_Trail_Red.stl"],)),
+        ("水系", (ids_by_name["07_Water_Blue.stl"],)),
+    )
 
 
 def write_main_model(destination: Path, parts, grouped=False):
@@ -91,7 +97,7 @@ def write_main_model(destination: Path, parts, grouped=False):
     ET.SubElement(model, f"{{{CORE}}}metadata", {"name": "BambuStudio:3mfVersion"}).text = "1"
     resources = ET.SubElement(model, f"{{{CORE}}}resources")
     first_group_id = max(item[0] for item in parts) + 1
-    groups = GROUPS if grouped else (("模型", tuple(item[0] for item in parts)),)
+    groups = groups_for(parts) if grouped else (("模型", tuple(item[0] for item in parts)),)
     group_ids = []
     for offset, (_label, member_ids) in enumerate(groups):
         group_id = first_group_id + offset
@@ -119,7 +125,7 @@ def model_settings(parts, project_name="模型", grouped=False):
     first_group_id = max(item[0] for item in parts) + 1
     parts_by_id = {item[0]: item for item in parts}
     root = ET.Element("config")
-    groups = GROUPS if grouped else (("", tuple(item[0] for item in parts)),)
+    groups = groups_for(parts) if grouped else (("", tuple(item[0] for item in parts)),)
     group_ids = []
     for offset, (label, member_ids) in enumerate(groups):
         group_id = first_group_id + offset; group_ids.append(group_id)
@@ -168,6 +174,8 @@ def main():
         ("06_Trail_Red.stl", 5),
         ("07_Water_Blue.stl", 4),
     ]
+    if (args.source_dir / "08_Terrain_City_Terracotta.stl").is_file():
+        specs.append(("08_Terrain_City_Terracotta.stl", 6))
     parts = [(index + 1, args.source_dir / name, extruder) for index, (name, extruder) in enumerate(specs)]
     args.destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temp:
@@ -185,6 +193,7 @@ def main():
             "#858C91",
             "#2563B8",
             "#D93025",
+            "#C56A3A",
         ]
         settings["filament_colour"] = palette
         settings["default_filament_colour"] = palette

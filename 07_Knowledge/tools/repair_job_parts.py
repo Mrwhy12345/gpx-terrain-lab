@@ -26,6 +26,7 @@ NAMES = (
     "10_Trail_Red_SeparatePrint.stl",
     "05_Water_Blue_SeparatePrint.stl",
 )
+OPTIONAL_NAMES = ("04_Terrain_City_Terracotta_Grooved.stl",)
 
 
 def quality(obj):
@@ -38,7 +39,7 @@ def main():
     args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
     if len(args)!=3: raise SystemExit("Expected SOURCE_DIR OUTPUT_DIR REPORT.json")
     source,output,report=map(Path,args); output.mkdir(parents=True,exist_ok=True); records=[]
-    for name in NAMES:
+    for name in (*NAMES, *(name for name in OPTIONAL_NAMES if (source/name).is_file())):
         src=source/name; dst=output/name
         if not src.is_file(): raise FileNotFoundError(src)
         bpy.ops.object.select_all(action="SELECT"); bpy.ops.object.delete(use_global=False)

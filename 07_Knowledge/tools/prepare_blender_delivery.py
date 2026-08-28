@@ -53,7 +53,9 @@ def main():
 
     for obj in visible:
         role = (obj.name + str(obj.get("Object type", "")) + str(obj.get("S03_geometry", "")) + str(obj.get("SYS01_geometry", ""))).lower()
-        if "trail" in role:
+        if "city_terracotta" in role:
+            force_material(obj, "DELIVERY_City_Terracotta", (0.77, 0.42, 0.23))
+        elif "trail" in role:
             force_material(obj, "DELIVERY_Trail_Red", (0.85, 0.04, 0.02))
         elif "water" in role:
             force_material(obj, "DELIVERY_Water_Blue", (0.08, 0.30, 0.78))

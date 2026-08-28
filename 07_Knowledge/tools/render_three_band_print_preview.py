@@ -36,6 +36,7 @@ def main():
     gray = material("FINAL_Gray", (0.47, 0.51, 0.54))
     blue = material("FINAL_Blue", (0.01, 0.35, 0.95))
     red = material("FINAL_Red", (0.92, 0.025, 0.015))
+    terracotta = material("FINAL_City_Terracotta", (0.77, 0.42, 0.23))
 
     low = next(
         obj
@@ -52,6 +53,8 @@ def main():
             assign(obj, brown)
         elif object_type == "TERRAIN_HIGH_GRAY":
             assign(obj, gray)
+        elif object_type == "TERRAIN_CITY_TERRACOTTA":
+            assign(obj, terracotta)
         elif obj.get("S02_geometry") in {"stream_ribbon", "water_area"}:
             assign(obj, blue)
         elif obj.get("Object type") in {"TRAIL", "TRAIL_INSERT"}:

@@ -20,7 +20,7 @@ JOBS_ROOT = ROOT / "08_Jobs"
 TOOLS = ROOT / "07_Knowledge" / "tools"
 BLENDER = Path("/Applications/Blender.app/Contents/MacOS/Blender")
 STATUS_NAME = "web_task_status.json"
-PIPELINE_VERSION = "WEB05_ASYNC_V2_QUEUE"
+PIPELINE_VERSION = "WEB06_CREATIVE_CONFIRM_V1"
 BASE_ALGORITHM = "parallel_equal_width_ring_v3"
 FONT_ALGORITHM = "printable_chinese_v4"
 FINAL_LABELS = {
@@ -30,6 +30,30 @@ FINAL_LABELS = {
 
 sys.path.insert(0, str(TOOLS))
 from configure_route_scene import configure as configure_route_scene
+from build_creative_choices import (
+    attach_bottom_render,
+    choose_logo,
+    choose_title,
+    confirm_creative,
+    initialize_creative,
+    load_creative,
+)
+
+
+def render_creative_bottom_preview(job_dir):
+    """Render A4 from the exact selected creative source, matching A1-A3."""
+    job_dir = Path(job_dir)
+    output = job_dir / "work" / "creative" / "bottom_render.png"
+    log_path = job_dir / "process" / "creative_bottom_render.log"
+    command = [
+        str(BLENDER), "--background", "--python",
+        str(TOOLS / "render_creative_bottom_preview.py"), "--",
+        str(job_dir), str(output),
+    ]
+    result = run_blender(command, log_path, attempts=2)
+    if result.returncode or not output.is_file():
+        raise RuntimeError("底部 Blender 视图生成失败，请检查 creative_bottom_render.log")
+    return attach_bottom_render(job_dir)
 
 
 def safe_slug(value):
@@ -94,8 +118,9 @@ def run_blender(command, log_path, attempts=3):
 
 
 def preview_payload(job_id, route_profile):
+    job_dir = JOBS_ROOT / job_id
     base = f"/generated/{job_id}/review/"
-    generation_path = JOBS_ROOT / job_id / "review/trailprint_generation.json"
+    generation_path = job_dir / "review/trailprint_generation.json"
     generation = json.loads(generation_path.read_text(encoding="utf-8")) if generation_path.exists() else {}
     return {
         "ok": True,
@@ -109,6 +134,7 @@ def preview_payload(job_id, route_profile):
             {"key": "side", "label": "侧视高度", "url": base + "blender_preview_side.png"},
         ],
         "coverage": {"terrain": "ready", "base": "reference", "trail": "ready", "water": "ready", "one_plate": "pending", "blend": "ready"},
+        "creative": load_creative(job_dir),
     }
 
 
@@ -177,8 +203,9 @@ def run_preview(job_id):
         job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
         job["status"] = "blender_preview_ready"
         write_json_atomic(job_dir / "job.json", job)
+        initialize_creative(job_dir)
         result = preview_payload(job_id, route_profile)
-        update_status(job_dir, "PREVIEW_READY", "preview", 100, "三机位仿真完成", result=result)
+        update_status(job_dir, "PREVIEW_READY", "creative", 100, "工程仿真完成，请先选择标题", result=result)
     except Exception as exc:
         (job_dir / "process/async_preview_traceback.log").write_text(traceback.format_exc(), encoding="utf-8")
         update_status(job_dir, "FAILED", "preview", 100, str(exc), error=str(exc))
@@ -193,6 +220,9 @@ def run_final(job_id):
     job_dir = JOBS_ROOT / job_id
     try:
         job_path, gpx_path = job_dir / "job.json", job_dir / "input/route.gpx"
+        creative = load_creative(job_dir)
+        if not creative or not creative.get("confirmed"):
+            raise RuntimeError("创意方案尚未确认：请依次选择标题、Logo 并确认底面校样")
         update_status(job_dir, "RUNNING", "production", 5, "正在生成最终 5+1", request="final")
         pipeline = subprocess.run(
             [sys.executable, str(TOOLS / "run_generic_job_pipeline.py"), str(job_dir)],

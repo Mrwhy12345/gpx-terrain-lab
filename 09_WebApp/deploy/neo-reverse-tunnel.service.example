@@ -1,0 +1,12 @@
+[Unit]
+Description=GPX Terrain Lab Neo to Shanghai reverse API tunnel
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -NT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:4174:127.0.0.1:4174 gpx-shanghai-web
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

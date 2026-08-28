@@ -1,0 +1,42 @@
+{
+  "suite": "adaptive route profile compatibility",
+  "status": "PASS",
+  "cases": [
+    {
+      "file": "2025-02-23 从化星溪线.gpx",
+      "expected": "LOCAL_HIKE",
+      "actual": "LOCAL_HIKE",
+      "parameters_check": true,
+      "model_points": 878,
+      "source_points": 878,
+      "status": "PASS"
+    },
+    {
+      "file": "广州大夫山环穿画马（石马山～三乌岗～石马山）20251222+20260110（合并）.gpx",
+      "expected": "LOCAL_HIKE",
+      "actual": "LOCAL_HIKE",
+      "parameters_check": true,
+      "model_points": 1417,
+      "source_points": 1417,
+      "status": "PASS"
+    },
+    {
+      "file": "新兴水源山—孖山(风车山)环线.gpx",
+      "expected": "LOCAL_HIKE",
+      "actual": "LOCAL_HIKE",
+      "parameters_check": true,
+      "model_points": 983,
+      "source_points": 983,
+      "status": "PASS"
+    },
+    {
+      "file": "广州-潮州-2026-08-14+07+43+47.gpx",
+      "expected": "REGIONAL_OVERVIEW",
+      "actual": "REGIONAL_OVERVIEW",
+      "parameters_check": true,
+      "model_points": 64,
+      "source_points": 14859,
+      "status": "PASS"
+    }
+  ]
+}

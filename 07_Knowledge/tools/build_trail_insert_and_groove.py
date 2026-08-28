@@ -157,7 +157,11 @@ def main():
     # that as a failed conversion and recover from the preserved route-following
     # structural spine.  This follows the GPX exactly and never adds a straight
     # cross-terrain bridge; the TrailPrint3D groove cutter remains authoritative.
-    recovered_from_core = conversion_returned_none or len(trail_insert.data.vertices) < 3 or len(trail_insert.data.polygons) == 0
+    # The ordered GPX-following curve is the topology authority.  TrailPrint's
+    # projected shell is useful for terrain processing, but on tight/short
+    # routes it may split or close across a loop.  Always build the printable
+    # insert and its receiving slot from the preserved continuous centreline.
+    recovered_from_core = True
     if recovered_from_core:
         bpy.data.objects.remove(trail_insert, do_unlink=True)
         trail_insert = continuity_core.copy()
@@ -179,6 +183,7 @@ def main():
     trail_insert.name = "S02_Trail_Red_Insert"
     trail_insert["Object type"] = "TRAIL_INSERT"
     trail_insert["S03_geometry"] = "trail_insert"
+    trail_insert["Topology authority"] = "ordered_gpx_continuity_spine"
     red = bpy.data.materials.get("Trail_Red_Insert")
     if red is None:
         red = bpy.data.materials.new("Trail_Red_Insert")
@@ -237,7 +242,7 @@ def main():
         "trailprint_shell_recovery": {
             "used": recovered_from_core,
             "conversion_returned_none": conversion_returned_none,
-            "method": "preserved_route_following_structural_spine",
+            "method": "authoritative_gpx_route_following_structural_spine",
             "straight_cross_terrain_bridges": 0,
             "common_bottom_z": recovery_bottom[0] if recovery_bottom else None,
             "bottom_vertex_count": recovery_bottom[1] if recovery_bottom else None,
