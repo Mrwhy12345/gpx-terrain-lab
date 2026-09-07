@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = Path(__file__).resolve().parent
 BLENDER = Path("/Applications/Blender.app/Contents/MacOS/Blender")
 TEMPLATE = ROOT / "08_Jobs/20260810_xingxi_water_rich_res8/final_tested_baseline/05_星溪竹林_四件同盘_TrailPrint真机参数.3mf"
-PIPELINE_REVISION = "2026-08-27-trailprint-source-surface-direct-v7"
+PIPELINE_REVISION = "2026-08-29-magnet-pocket-rollback-qms-v12"
 FORCE_REBUILD = False
 
 
@@ -77,8 +77,16 @@ def main():
     stages = []
     source = work / "trailprint_source.blend"
     stages.append(run("01_trailprint", blender(None, "generate_job_trailprint.py", job_dir), [source], process, timeout=1800))
+    trail_source = source
+    if engineering.get("water_from_painted_material", False):
+        trail_source = work / "flat_water_source.blend"
+        stages.append(run(
+            "01b_flat_water",
+            blender(source, "extract_flat_water_from_painted_terrain.py", trail_source, review/"flat_water.json", job_path),
+            [trail_source, review/"flat_water.json"], process,
+        ))
     trail = work / "trail_insert.blend"
-    stages.append(run("02_trail", blender(source, "build_trail_insert_and_groove.py", trail, review/"trail_insert.json", job_path), [trail, review/"trail_insert.json"], process))
+    stages.append(run("02_trail", blender(trail_source, "build_trail_insert_and_groove.py", trail, review/"trail_insert.json", job_path), [trail, review/"trail_insert.json"], process))
     endpoint = work / "trail_endpoints.blend"
     model_gpx=job_dir/route.get("model_gpx",route["gpx"])
     stages.append(run("03_endpoints", blender(trail, "add_trail_endpoint_relief.py", model_gpx, endpoint, review/"trail_endpoints.json"), [endpoint, review/"trail_endpoints.json"], process))
@@ -131,12 +139,25 @@ def main():
         [trail_shape_audit], process,
     ))
     repaired = work / "repaired_parts"
-    repair_outputs = [repaired/"05_Water_Blue_SeparatePrint.stl", review/"part_repair.json"]
+    repair_outputs = [
+        repaired/"05_Water_Blue_SeparatePrint.stl",
+        repaired/"07_Base_Gray.stl",
+        repaired/"08_Labels_Logo_Brown.stl",
+        repaired/"10_Trail_Red_SeparatePrint.stl",
+        review/"part_repair.json",
+    ]
     if has_city:
         repair_outputs.append(repaired/"04_Terrain_City_Terracotta_Grooved.stl")
     stages.append(run("11_repair", blender(None,"repair_job_parts.py",parts,repaired,review/"part_repair.json"),repair_outputs,process))
     canonical = work / "canonical_parts_v2"; plate = work / "one_plate_parts_v2"
-    layout_outputs = [canonical/"07_Water_Blue.stl", plate/"07_Water_Blue.stl"]
+    layout_outputs = [
+        canonical/"04_Base_Gray.stl",
+        canonical/"05_Base_Labels_Logo_Brown.stl",
+        canonical/"07_Water_Blue.stl",
+        plate/"04_Base_Gray.stl",
+        plate/"05_Base_Labels_Logo_Brown.stl",
+        plate/"07_Water_Blue.stl",
+    ]
     if has_city:
         layout_outputs.extend([canonical/"08_Terrain_City_Terracotta.stl", plate/"08_Terrain_City_Terracotta.stl"])
     stages.append(run("12_layout", [sys.executable, str(TOOLS/"layout_job_print_parts.py"), str(repaired), str(canonical), str(plate)], layout_outputs, process))
@@ -157,13 +178,29 @@ def main():
         for path, extruder in parts_spec: command += ["--part", f"{path}:{extruder}"]
         stages.append(run(f"13_3mf_{key}",command,[destination],process))
     one_plate = final / f"05_{name}_四件同盘.3mf"
-    stages.append(run("13_3mf_05",[sys.executable,str(TOOLS/"build_bambu_one_plate_3mf.py"),str(plate),str(TEMPLATE),str(one_plate),"--name",f"{name}_四件同盘"],[one_plate],process))
+    stages.append(run("13_3mf_05",[sys.executable,str(TOOLS/"build_bambu_one_plate_3mf.py"),str(plate),str(TEMPLATE),str(one_plate),"--name",f"{name}_四件同盘","--print-sequence","by layer"],[one_plate],process))
     stages.append(run("13_3mf_05_hierarchy",[sys.executable,str(TOOLS/"validate_bambu_four_object_plate.py"),str(one_plate),str(review/"one_plate_hierarchy.json")],[review/"one_plate_hierarchy.json"],process))
+    stages.append(run("13_3mf_05_native_structure",[sys.executable,str(TOOLS/"validate_bambu_native_structure.py"),str(one_plate),str(review/"bambu_native_structure.json"),"--expected-top-level","4"],[review/"bambu_native_structure.json"],process))
+    stages.append(run("13_3mf_05_tower_clearance",[sys.executable,str(TOOLS/"validate_bambu_prime_tower_clearance.py"),str(one_plate),str(review/"prime_tower_clearance.json")],[review/"prime_tower_clearance.json"],process))
     blend = final / f"06_{name}_完整设计预览.blend"
-    stages.append(run("14_blender",blender(final_scene,"prepare_blender_delivery.py",blend,review/"blender_delivery.json",review/"blender_delivery.png"),[blend,review/"blender_delivery.json"],process))
+    stages.append(run(
+        "14_blender",
+        blender(final_scene,"prepare_blender_delivery.py",blend,review/"blender_delivery.json",review/"blender_delivery.png"),
+        [blend, review/"blender_delivery.json", review/"blender_delivery_bottom.png"],
+        process,
+    ))
     release_qa = review / "generic_release_qa.json"
     stages.append(run("15_release_qa",[sys.executable,str(TOOLS/"validate_generic_release.py"),str(final),str(release_qa)],[release_qa],process))
-    result={"status":"PIPELINE_PASS","job_id":job["job_id"],"creative":creative,"stages":stages,"final":[str(p) for p in sorted(final.iterdir()) if p.suffix.lower() in {".3mf",".blend"}]}
+    functional_fit = review / "base_functional_fit.json"
+    stages.append(run(
+        "15b_base_functional_fit",
+        [sys.executable, str(TOOLS/"validate_base_functional_fit.py"), str(review/"base.json"), str(functional_fit)],
+        [functional_fit], process,
+    ))
+    quality_report = review / "quality_report.json"
+    stages.append(run("16_quality_composition",[sys.executable,str(TOOLS/"compose_release_quality.py"),str(job_dir),str(quality_report)],[quality_report],process))
+    quality=json.loads(quality_report.read_text(encoding="utf-8"))
+    result={"status":quality["overall_status"],"job_id":job["job_id"],"creative":creative,"quality_report":str(quality_report),"stages":stages,"final":[str(p) for p in sorted(final.iterdir()) if p.suffix.lower() in {".3mf",".blend"}]}
     (review/"generic_pipeline.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     revision_path.write_text(PIPELINE_REVISION+"\n", encoding="utf-8")
     print(json.dumps(result,ensure_ascii=False))
