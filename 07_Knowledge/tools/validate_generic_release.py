@@ -143,6 +143,13 @@ def main():
             )
             if hierarchy.returncode: raise RuntimeError(hierarchy.stdout + hierarchy.stderr)
             checks.append(f"PASS {project.name}: four_top_level_objects")
+            native = subprocess.run(
+                [sys.executable, str(tools / "validate_bambu_native_structure.py"),
+                 str(project), "--expected-top-level", "4"],
+                text=True, capture_output=True,
+            )
+            if native.returncode: raise RuntimeError(native.stdout + native.stderr)
+            checks.append(f"PASS {project.name}: bambu_native_object_structure")
     result = subprocess.run(
         [sys.executable, str(tools / "validate_bambu_3mf_z.py"), *map(str, projects)],
         text=True, capture_output=True,
